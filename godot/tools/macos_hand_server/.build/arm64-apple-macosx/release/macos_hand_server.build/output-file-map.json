@@ -1,0 +1,13 @@
+{
+  "": {
+    "dependencies": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/macos_hand_server.d",
+    "object": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/macos_hand_server.o",
+    "swift-dependencies": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/master.swiftdeps"
+  },
+  "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Sources/main.swift": {
+    "object": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swift.o",
+    "swiftmodule": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swiftdeps",
+    "diagnostics": "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.dia"
+  }
+}

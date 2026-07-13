@@ -1,16 +1,24 @@
 class_name GestureController
 extends RefCounted
-## Charge / manual cast / fist spell switch — ported & tightened from web.
+## Charge / cast / fist spell switch.
+## Kid mode (auto_fire): aim with pointer, auto charge + auto shoot — no push gesture needed.
 
 const OPEN_CHARGE := 0.14
 const CAST_FORWARD := 0.55
 const MIN_CAST_CHARGE := 0.12
+## Auto-fire releases around this charge (kids don't need a push).
+const AUTO_CAST_CHARGE := 0.42
 const CHARGE_RATE := 0.85
+const CHARGE_RATE_KID := 1.55
 const CHARGE_DECAY := 0.55
 const COOLDOWN_SEC := 0.32
+const COOLDOWN_SEC_KID := 0.38
 const FIST_SWITCH_COOLDOWN_SEC := 0.55
 const HISTORY_SEC := 0.16
 const OPEN_SMOOTH := 14.0
+
+## When true: open palm auto-fills and auto-casts (kid-friendly).
+var auto_fire: bool = true
 
 var phase: StringName = &"idle"
 var charge: float = 0.0
@@ -149,28 +157,33 @@ func update(hands: Array, dt: float, now_sec: float) -> UpdateResult:
 			var depth_speed: float = (oldest["depth"] - newest["depth"]) / elapsed
 			forward = maxf(0.0, maxf(size_speed * 6.5, depth_speed * 3.5))
 
+		var rate := CHARGE_RATE_KID if auto_fire else CHARGE_RATE
 		if cast_hand.openness >= OPEN_CHARGE and phase != &"cooldown":
 			phase = &"charging"
 			var fill := 0.15 + cast_hand.openness * cast_hand.openness * 1.35
-			charge = minf(1.0, charge + fill * CHARGE_RATE * dt)
+			# Kid mode: always fill steadily even if openness is moderate
+			if auto_fire:
+				fill = maxf(fill, 0.85)
+			charge = minf(1.0, charge + fill * rate * dt)
 		elif phase != &"cooldown":
 			charge = maxf(0.0, charge - CHARGE_DECAY * dt)
 			if charge <= 0.02:
 				phase = &"idle"
 
-		# Manual release only
-		if (
+		var can_release := (
 			phase != &"cooldown"
-			and charge >= MIN_CAST_CHARGE
 			and cast_hand.openness >= OPEN_CHARGE
-			and forward >= CAST_FORWARD
-		):
+		)
+		var push_cast := can_release and charge >= MIN_CAST_CHARGE and forward >= CAST_FORWARD
+		var auto_cast := auto_fire and can_release and charge >= AUTO_CAST_CHARGE
+
+		if push_cast or auto_cast:
 			result.cast = true
 			result.cast_hand = cast_hand
 			result.charge_used = charge
 			last_cast_at = now_sec
 			phase = &"cooldown"
-			cooldown = COOLDOWN_SEC
+			cooldown = COOLDOWN_SEC_KID if auto_fire else COOLDOWN_SEC
 			charge = 0.0
 	else:
 		charge = maxf(0.0, charge - CHARGE_DECAY * 1.2 * dt)
@@ -188,7 +201,7 @@ func force_cast_from_input(power: float = 0.7) -> UpdateResult:
 	r.spell = spell
 	charge = 0.0
 	phase = &"cooldown"
-	cooldown = COOLDOWN_SEC
+	cooldown = COOLDOWN_SEC_KID if auto_fire else COOLDOWN_SEC
 	return r
 
 

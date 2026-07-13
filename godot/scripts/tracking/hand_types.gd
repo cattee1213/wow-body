@@ -41,6 +41,16 @@ class HandSample:
 	var depth: float = 0.0
 	## 21 normalized points (0..1), selfie-mirrored.
 	var landmarks: PackedVector2Array = PackedVector2Array()
+	## Per-joint confidence 0..1 (0 = invalid / do not draw).
+	var joint_conf: PackedFloat32Array = PackedFloat32Array()
 	var handedness: String = "Unknown"
 	var timestamp_ms: float = 0.0
 	var confidence: float = 1.0
+
+	func is_joint_valid(i: int, min_conf: float = 0.12) -> bool:
+		if i < 0 or i >= landmarks.size():
+			return false
+		if joint_conf.size() == landmarks.size():
+			return joint_conf[i] >= min_conf
+		# Synthetic hands have no conf array — treat as valid.
+		return true

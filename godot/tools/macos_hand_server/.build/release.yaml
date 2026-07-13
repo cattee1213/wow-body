@@ -1,0 +1,66 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "PackageStructure": ["<PackageStructure>"]
+  "macos_hand_server-arm64-apple-macosx26.0-release.exe": ["<macos_hand_server-arm64-apple-macosx26.0-release.exe>"]
+  "macos_hand_server-arm64-apple-macosx26.0-release.module": ["<macos_hand_server-arm64-apple-macosx26.0-release.module>"]
+  "main": ["<macos_hand_server-arm64-apple-macosx26.0-release.exe>","<macos_hand_server-arm64-apple-macosx26.0-release.module>"]
+  "test": ["<macos_hand_server-arm64-apple-macosx26.0-release.exe>","<macos_hand_server-arm64-apple-macosx26.0-release.module>"]
+default: "main"
+nodes:
+  "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Sources/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Sources/main.swift"]
+    outputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/sources"]
+    description: "Write auxiliary file /Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/sources"
+
+  "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.product/Objects.LinkFileList":
+    tool: write-auxiliary-file
+    inputs: ["<link-file-list>","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swift.o"]
+    outputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.product/Objects.LinkFileList"]
+    description: "Write auxiliary file /Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.product/Objects.LinkFileList"
+
+  "/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+
+  "<macos_hand_server-arm64-apple-macosx26.0-release.exe>":
+    tool: phony
+    inputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server"]
+    outputs: ["<macos_hand_server-arm64-apple-macosx26.0-release.exe>"]
+
+  "<macos_hand_server-arm64-apple-macosx26.0-release.module>":
+    tool: phony
+    inputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swift.o","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/Modules/macos_hand_server.swiftmodule"]
+    outputs: ["<macos_hand_server-arm64-apple-macosx26.0-release.module>"]
+
+  "C.macos_hand_server-arm64-apple-macosx26.0-release.exe":
+    tool: shell
+    inputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swift.o","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.product/Objects.LinkFileList"]
+    outputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server"]
+    description: "Linking ./.build/arm64-apple-macosx/release/macos_hand_server"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-L","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release","-o","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server","-module-name","macos_hand_server","-Xlinker","-no_warn_duplicate_libraries","-emit-executable","-Xlinker","-dead_strip","-Xlinker","-alias","-Xlinker","_macos_hand_server_main","-Xlinker","_main","-Xlinker","-rpath","-Xlinker","@loader_path","@/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.product/Objects.LinkFileList","-Xlinker","-rpath","-Xlinker","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx","-target","arm64-apple-macosx13.0","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g"]
+
+  "C.macos_hand_server-arm64-apple-macosx26.0-release.module":
+    tool: shell
+    inputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Sources/main.swift","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/sources"]
+    outputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/main.swift.o","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/Modules/macos_hand_server.swiftmodule"]
+    description: "Compiling Swift Module 'macos_hand_server' (1 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","macos_hand_server","-emit-dependencies","-emit-module","-emit-module-path","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/Modules/macos_hand_server.swiftmodule","-output-file-map","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/output-file-map.json","-whole-module-optimization","-num-threads","8","-c","@/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/macos_hand_server.build/sources","-I","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/Modules","-target","arm64-apple-macosx13.0","-whole-module-optimization","-num-threads","8","-serialize-diagnostics","-O","-j8","-DSWIFT_PACKAGE","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/.build/arm64-apple-macosx/release/ModuleCache","-parseable-output","-Xfrontend","-entry-point-function-name","-Xfrontend","macos_hand_server_main","-swift-version","5","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","macos_hand_server"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Sources/","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Package.swift","/Users/xiaoshangfei/SourceCode/Personal/wow-body/godot/tools/macos_hand_server/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+
