@@ -1,0 +1,165 @@
+.app-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #07060b;
+  color: #f3e6d0;
+  font-family:
+    system-ui,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+}
+
+.camera-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  opacity: 0;
+  filter: saturate(0.85) brightness(0.55) contrast(1.05);
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+
+.camera-video--live {
+  opacity: 1;
+}
+
+.game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.overlay-panel {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(120, 50, 10, 0.35), transparent 55%),
+    rgba(6, 5, 10, 0.72);
+  z-index: 5;
+}
+
+.panel-card {
+  width: min(440px, 100%);
+  padding: 1.75rem 1.5rem 1.4rem;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 180, 80, 0.28);
+  background: linear-gradient(160deg, rgba(36, 22, 14, 0.95), rgba(14, 12, 20, 0.96));
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 220, 160, 0.12);
+}
+
+.eyebrow {
+  margin: 0 0 0.35rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: #ffb347;
+}
+
+.panel-card h1 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.5rem, 4vw, 1.9rem);
+  color: #ffe6b0;
+}
+
+.lead {
+  margin: 0 0 1rem;
+  line-height: 1.55;
+  color: rgba(243, 230, 208, 0.88);
+}
+
+.howto {
+  margin: 0 0 1.1rem;
+  padding-left: 1.15rem;
+  line-height: 1.65;
+  color: rgba(243, 230, 208, 0.8);
+  font-size: 0.95rem;
+}
+
+.warn {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(180, 40, 40, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.35);
+  color: #ffb4b4;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.primary-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #1a0f08;
+  background: linear-gradient(180deg, #ffd27a 0%, #ff9f1c 100%);
+  box-shadow: 0 8px 24px rgba(255, 140, 20, 0.28);
+  transition:
+    transform 0.12s ease,
+    filter 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.primary-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.primary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fineprint {
+  margin: 0.9rem 0 0;
+  font-size: 0.78rem;
+  color: #8b93a7;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.corner-tip {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  z-index: 4;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: rgba(243, 230, 208, 0.85);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .corner-tip {
+    white-space: normal;
+    text-align: center;
+    max-width: calc(100% - 24px);
+  }
+
+  .panel-card {
+    padding: 1.35rem 1.1rem 1.15rem;
+  }
+}
