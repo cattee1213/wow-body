@@ -6,13 +6,14 @@ extends RefCounted
 const OPEN_CHARGE := 0.14
 const CAST_FORWARD := 0.55
 const MIN_CAST_CHARGE := 0.12
-## Auto-fire releases around this charge (kids don't need a push).
-const AUTO_CAST_CHARGE := 0.42
+## Auto-fire only when nearly full — gives clear 蓄力 feedback window.
+const AUTO_CAST_CHARGE := 0.88
 const CHARGE_RATE := 0.85
-const CHARGE_RATE_KID := 1.55
+## Slower fill so player sees hold → charge grow → release.
+const CHARGE_RATE_KID := 0.95
 const CHARGE_DECAY := 0.55
 const COOLDOWN_SEC := 0.32
-const COOLDOWN_SEC_KID := 0.38
+const COOLDOWN_SEC_KID := 0.45
 const FIST_SWITCH_COOLDOWN_SEC := 0.55
 const HISTORY_SEC := 0.16
 const OPEN_SMOOTH := 14.0

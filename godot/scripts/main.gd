@@ -1,6 +1,6 @@
 extends Control
-## WoW Body — pure motion / body-tracking game.
-## No mouse or keyboard control. Vision hand only + palm dwell UI.
+## WoW Body — Godot client.
+## Primary: camera body/hand sensing. Fallback: keyboard + mouse (cursor hidden while sensing).
 
 const DWELL_START_SEC := 3.0
 const DWELL_SPELL_SEC := 1.15
@@ -39,33 +39,42 @@ var _playing := false
 var _starting := false
 var _has_palm := false
 var _last_palm_px := Vector2.ZERO
+var _sensing_active := false
 
 var _dwell_start: DwellTarget
 var _dwell_restart: DwellTarget
 var _dwell_spells: Array = [] # DwellTarget
-var _start_btn_base_text := "把手放在按钮上 3 秒开始"
-var _restart_btn_base_text := "把手放在按钮上 2 秒重开"
+var _start_btn_base_text := "体感：悬停 3 秒  ·  键鼠：点击开始"
+var _restart_btn_base_text := "体感：悬停 2 秒  ·  键鼠：点击重开"
 
 
 func _ready() -> void:
 	randomize()
+	# Force reload VFX frames (image2 processed atlas) every launch.
+	SpellVfxLibrary.reload()
 	_gesture.auto_fire = true
 	tracker.always_open = true
-	tracker.mouse_fallback = false
+	tracker.mouse_fallback = true
 	tracker.use_vision = true
 
-	# Prefer camera + Vision on macOS / mobile.
 	if OS.has_feature("android") or OS.has_feature("mobile") or OS.get_name() == "macOS":
 		tracker.mode = HandTracker.Mode.CAMERA
 	else:
 		tracker.mode = HandTracker.Mode.CAMERA
 
-	# Pure motion: buttons are dwell targets only — ignore mouse clicks.
-	_make_dwell_only(btn_start)
-	_make_dwell_only(btn_restart)
-	_make_dwell_only(btn_spell_fire)
-	_make_dwell_only(btn_spell_frost)
-	_make_dwell_only(btn_spell_lightning)
+	tracker.sensing_active_changed.connect(_on_sensing_active_changed)
+
+	# Buttons: click works in fallback; dwell works always via palm/pointer.
+	if not btn_start.pressed.is_connected(_on_start_clicked):
+		btn_start.pressed.connect(_on_start_clicked)
+	if not btn_restart.pressed.is_connected(_on_restart):
+		btn_restart.pressed.connect(_on_restart)
+	if not btn_spell_fire.pressed.is_connected(_on_spell_fire_clicked):
+		btn_spell_fire.pressed.connect(_on_spell_fire_clicked)
+	if not btn_spell_frost.pressed.is_connected(_on_spell_frost_clicked):
+		btn_spell_frost.pressed.connect(_on_spell_frost_clicked)
+	if not btn_spell_lightning.pressed.is_connected(_on_spell_lightning_clicked):
+		btn_spell_lightning.pressed.connect(_on_spell_lightning_clicked)
 
 	game_world.state_changed.connect(_refresh_hud)
 	game_world.defeated.connect(_on_defeated)
@@ -91,22 +100,43 @@ func _ready() -> void:
 	game_over_panel.visible = false
 	spell_bar.visible = false
 	lbl_message.text = ""
-	lbl_tip.text = "纯体感：把手伸到镜头前 · 悬停开始按钮 3 秒"
+	lbl_tip.text = "优先体感 · 无手时键鼠备用 · 体感激活自动隐藏鼠标"
 	if gesture_cursor:
 		gesture_cursor.pivot_offset = gesture_cursor.size * 0.5
 		if gesture_cursor.pivot_offset.length_squared() < 1.0:
 			gesture_cursor.pivot_offset = Vector2(36, 36)
 		gesture_cursor.visible = false
+
+	_apply_input_mode(false)
 	_refresh_hud()
 	_boot_camera()
 
 
-func _make_dwell_only(btn: BaseButton) -> void:
-	if btn == null:
-		return
-	# Keep focusable for layout; ignore pointer so only palm dwell activates.
-	btn.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	btn.focus_mode = Control.FOCUS_NONE
+func _exit_tree() -> void:
+	# Always restore cursor when leaving the game scene.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+
+func _on_sensing_active_changed(active: bool) -> void:
+	_apply_input_mode(active)
+
+
+func _apply_input_mode(sensing: bool) -> void:
+	_sensing_active = sensing
+	if sensing:
+		# Body tracking owns the pointer — hide OS cursor.
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+		_set_buttons_mouse_filter(Control.MOUSE_FILTER_IGNORE)
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_set_buttons_mouse_filter(Control.MOUSE_FILTER_STOP)
+
+
+func _set_buttons_mouse_filter(mode: Control.MouseFilter) -> void:
+	for btn in [btn_start, btn_restart, btn_spell_fire, btn_spell_frost, btn_spell_lightning]:
+		if btn:
+			btn.mouse_filter = mode
+			btn.focus_mode = Control.FOCUS_NONE if mode == Control.MOUSE_FILTER_IGNORE else Control.FOCUS_ALL
 
 
 func _boot_camera() -> void:
@@ -117,18 +147,44 @@ func _boot_camera() -> void:
 		if tracker.has_vision():
 			break
 		await get_tree().create_timer(0.1).timeout
+	_apply_input_mode(tracker.is_sensing_active())
 	_update_boot_status(ok)
 
 
 func _update_boot_status(camera_ok: bool) -> void:
-	if tracker.is_vision_tracking():
-		lbl_status.text = "手部识别中 · 把手移到开始按钮上停 3 秒"
+	if tracker.is_sensing_active():
+		lbl_status.text = "体感已激活（鼠标已隐藏）· 把手移到开始按钮上停 3 秒"
 	elif tracker.has_vision():
-		lbl_status.text = "手部服务已就绪 · 请把手伸到摄像头前"
+		lbl_status.text = "手部服务就绪 · 请伸手，或使用键鼠点击开始"
 	elif camera_ok:
-		lbl_status.text = "摄像头已开，手部服务未连上（%s）" % tracker.vision_status()
+		lbl_status.text = "摄像头已开，体感未连上 · 可用键鼠 · %s" % tracker.vision_status()
 	else:
-		lbl_status.text = "需要摄像头与手部识别 · %s" % tracker.vision_status()
+		lbl_status.text = "键鼠备用模式 · %s" % tracker.vision_status()
+
+
+func _on_start_clicked() -> void:
+	# Only honor clicks in fallback (when sensing, button ignores mouse).
+	if tracker.is_sensing_active():
+		return
+	_begin_game()
+
+
+func _on_spell_fire_clicked() -> void:
+	if tracker.is_sensing_active():
+		return
+	_set_spell(GameBus.SPELL_FIRE)
+
+
+func _on_spell_frost_clicked() -> void:
+	if tracker.is_sensing_active():
+		return
+	_set_spell(GameBus.SPELL_FROST)
+
+
+func _on_spell_lightning_clicked() -> void:
+	if tracker.is_sensing_active():
+		return
+	_set_spell(GameBus.SPELL_LIGHTNING)
 
 
 func _begin_game() -> void:
@@ -148,8 +204,16 @@ func _begin_game() -> void:
 	_gesture.reset()
 	_gesture.auto_fire = true
 	game_world.restart()
-	lbl_tip.text = "移动手掌瞄准 · 自动发射 · 悬停下方法术按钮切换 · 无需键鼠"
+	_apply_input_mode(tracker.is_sensing_active())
+	_update_tip()
 	_refresh_hud()
+
+
+func _update_tip() -> void:
+	if tracker.is_sensing_active():
+		lbl_tip.text = "体感 · 开掌蓄力看掌心漩涡变大 · 蓄满自动发射 · 悬停底部切法"
+	else:
+		lbl_tip.text = "键鼠 · 开掌/左键蓄力 · 蓄满自动放或空格 · Q切法 · R重开"
 
 
 func _apply_camera_bg() -> void:
@@ -165,6 +229,13 @@ func _apply_camera_bg() -> void:
 
 
 func _process(dt: float) -> void:
+	# Keep cursor mode in sync every frame (focus loss / OS can reset it).
+	var sensing_now := tracker.is_sensing_active()
+	if sensing_now != _sensing_active:
+		_apply_input_mode(sensing_now)
+	elif sensing_now and Input.mouse_mode != Input.MOUSE_MODE_HIDDEN:
+		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+
 	var hands: Array = tracker.get_hands()
 	var palm_px := _primary_palm_px(hands)
 
@@ -174,9 +245,11 @@ func _process(dt: float) -> void:
 
 	if not _playing:
 		_process_menu(dt, palm_px)
+		_process_fallback_keys_menu()
 		return
 
-	# No keyboard / mouse game controls — pure vision only.
+	_process_fallback_keys_game(hands)
+
 	var now := Time.get_ticks_msec() * 0.001
 	var result: GestureController.UpdateResult = _gesture.update(hands, dt, now)
 
@@ -195,6 +268,7 @@ func _process(dt: float) -> void:
 
 	_process_game_dwell(dt, palm_px)
 	_refresh_hud()
+	_update_tip()
 
 	if game_world.message_ttl > 0.0 and game_world.message != "":
 		lbl_message.text = game_world.message
@@ -203,18 +277,48 @@ func _process(dt: float) -> void:
 		lbl_message.visible = false
 
 
+func _process_fallback_keys_menu() -> void:
+	if tracker.is_sensing_active():
+		return
+	# Enter / Space can start in fallback
+	if Input.is_action_just_pressed("ui_accept") or Input.is_action_just_pressed("cast_debug"):
+		_begin_game()
+
+
+func _process_fallback_keys_game(hands: Array) -> void:
+	if tracker.is_sensing_active():
+		return
+
+	if Input.is_action_just_pressed("restart"):
+		_on_restart()
+		return
+
+	if Input.is_action_just_pressed("switch_spell"):
+		_gesture.spell = GameBus.next_spell(_gesture.spell)
+		GameBus.spell_changed.emit(_gesture.spell)
+		game_world.message = "法术：%s" % GameBus.spell_name(_gesture.spell)
+		game_world.message_ttl = 1.2
+
+	if Input.is_action_just_pressed("cast_debug"):
+		tracker.inject_forward_burst(0.12)
+		var fr := _gesture.force_cast_from_input(maxf(_gesture.charge, 0.65))
+		var palm := Vector2(0.5, 0.72)
+		if hands.size() > 0:
+			palm = hands[0].palm
+		game_world.cast_spell(palm, _gesture.spell, maxf(0.35, fr.charge_used))
+
+
 func _process_menu(dt: float, palm_px: Vector2) -> void:
 	if _starting or not start_panel.visible:
 		return
 
-	if tracker.is_vision_tracking():
-		if lbl_status.text.find("手部识别中") < 0:
+	if tracker.is_sensing_active():
+		if lbl_status.text.find("体感已激活") < 0:
 			_update_boot_status(tracker.has_camera())
 	elif tracker.has_vision():
-		if lbl_status.text.find("请把手伸到摄像头前") < 0:
+		if lbl_status.text.find("请伸手") < 0 and lbl_status.text.find("键鼠") < 0:
 			_update_boot_status(tracker.has_camera())
 
-	# Only dwell when a real hand is tracked.
 	var hovering := _has_palm and _dwell_start.is_hovering(palm_px)
 	if _dwell_start.update(dt, hovering):
 		_begin_game()
@@ -229,13 +333,13 @@ func _process_menu(dt: float, palm_px: Vector2) -> void:
 		btn_start.text = _start_btn_base_text
 		btn_start.modulate = Color.WHITE
 
-	var src := "体感" if tracker.is_vision_tracking() else ("等待伸手" if tracker.has_vision() else "未连接")
-	lbl_debug.text = "菜单[%s] 掌心(%.0f,%.0f) 悬停%s 进度%.0f%%  %s" % [
-		src,
+	lbl_debug.text = "菜单[%s] 掌心(%.0f,%.0f) 悬停%s 进度%.0f%%  鼠标%s  %s" % [
+		tracker.control_source_label(),
 		palm_px.x if _has_palm else -1.0,
 		palm_px.y if _has_palm else -1.0,
 		"是" if hovering else "否",
 		_dwell_start.progress * 100.0,
+		"隐藏" if tracker.is_sensing_active() else "显示",
 		tracker.vision_status(),
 	]
 
@@ -364,7 +468,6 @@ func _draw_hands(hands: Array) -> void:
 		for pair in HandTypes.CONNECTIONS:
 			var ia: int = pair[0]
 			var ib: int = pair[1]
-			# Skip edges that touch low-confidence joints (fixes top-right spike lines).
 			if not sample.is_joint_valid(ia) or not sample.is_joint_valid(ib):
 				continue
 			var a: Vector2 = sample.landmarks[ia] * vp
@@ -426,12 +529,12 @@ func _refresh_hud() -> void:
 	fill.corner_radius_bottom_right = 8
 	charge_bar.add_theme_stylebox_override("fill", fill)
 	if _playing:
-		var src := "体感" if tracker.is_vision_tracking() else "等待手部"
-		lbl_debug.text = "%s  状态 %s  蓄力 %.0f%%  手 %d  %s" % [
-			src,
+		lbl_debug.text = "[%s] 状态 %s  蓄力 %.0f%%  手 %d  鼠标%s  %s" % [
+			tracker.control_source_label(),
 			_phase_name(_gesture.phase),
 			_gesture.charge * 100.0,
 			_gesture.debug_hands,
+			"隐藏" if tracker.is_sensing_active() else "显示",
 			tracker.vision_status(),
 		]
 	_refresh_spell_buttons()
@@ -478,6 +581,8 @@ func _on_defeated(_score: int, _kills: int) -> void:
 	_dwell_restart.enabled = true
 	restart_dwell_bar.value = 0.0
 	btn_restart.text = _restart_btn_base_text
+	# Show cursor on game-over if fallback, keep hidden if still sensing.
+	_apply_input_mode(tracker.is_sensing_active())
 
 
 func _on_restart() -> void:
@@ -490,4 +595,5 @@ func _on_restart() -> void:
 	game_world.restart()
 	_playing = true
 	spell_bar.visible = true
+	_apply_input_mode(tracker.is_sensing_active())
 	_refresh_hud()

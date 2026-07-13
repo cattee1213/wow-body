@@ -1,7 +1,6 @@
 class_name HandTracker
 extends Node
-## Pure motion hand tracker (macOS Vision).
-## No mouse / keyboard synthetic hands — empty array when no real hand.
+## Hand tracker: Vision (macOS) primary, keyboard/mouse synthetic hand as fallback.
 
 enum Mode { INPUT, CAMERA }
 
@@ -11,15 +10,17 @@ const VISION_STALE_SEC := 0.35
 const VISION_RECONNECT_SEC := 1.25
 
 @export var mode: Mode = Mode.INPUT
-## Pure body game: never synthesize a mouse hand.
-@export var mouse_fallback: bool = false
-## Kept for API compat; unused when mouse_fallback is false.
+## When true, synthesize a hand from mouse/keys if Vision has no fresh hand.
+@export var mouse_fallback: bool = true
+## Synthetic hand stays open while charging (kid-friendly).
 @export var always_open: bool = true
 @export var use_vision: bool = true
 
 signal hands_updated(hands: Array)
 signal camera_ready(ok: bool)
 signal vision_ready(ok: bool)
+## Emitted when control source flips: true = body/vision, false = mouse/keyboard fallback.
+signal sensing_active_changed(active: bool)
 
 var _hands: Array = []
 var _camera_tex: CameraTexture
@@ -35,6 +36,17 @@ var _vision_hello: bool = false
 var _vision_reconnect_cd: float = 0.0
 var _vision_pid: int = -1
 var _vision_status: String = "off"
+
+# Mouse fallback state
+var _touch_open: float = 0.75
+var _is_charging: bool = false
+var _fist_held: bool = false
+var _last_palm := Vector2(0.5, 0.72)
+var _prev_palm := Vector2(0.5, 0.72)
+var _hand_size := 0.08
+var _depth := 0.0
+var _second_hand_enabled := true
+var _was_sensing: bool = false
 
 
 func get_hands() -> Array:
@@ -57,12 +69,28 @@ func is_vision_tracking() -> bool:
 	return has_vision() and _is_vision_fresh() and not _vision_hands.is_empty()
 
 
+## True when real body/hand sensing is driving input (not mouse fallback).
+func is_sensing_active() -> bool:
+	return is_vision_tracking()
+
+
+func is_using_fallback() -> bool:
+	return mouse_fallback and not is_sensing_active()
+
+
 func vision_status() -> String:
 	return _vision_status
 
 
+func control_source_label() -> String:
+	if is_sensing_active():
+		return "体感"
+	if mouse_fallback:
+		return "键鼠备用"
+	return "无输入"
+
+
 func start_camera() -> bool:
-	## Opens preview camera + (on macOS) Vision hand server.
 	if OS.get_name() == "Android":
 		OS.request_permission("CAMERA")
 
@@ -77,13 +105,13 @@ func start_camera() -> bool:
 
 	var feeds: Array = CameraServer.feeds()
 	if feeds.is_empty():
-		push_warning("No camera feed — preview disabled (Vision may still work)")
+		push_warning("No camera feed — preview disabled (Vision / fallback may still work)")
 		mode = Mode.INPUT
 		camera_ready.emit(false)
 		if use_vision and OS.get_name() == "macOS":
 			await get_tree().create_timer(0.4).timeout
 			_poll_vision(0.0)
-		return has_vision()
+		return has_vision() or mouse_fallback
 
 	_feed = feeds[0]
 	for f in feeds:
@@ -116,6 +144,15 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if use_vision and OS.get_name() == "macOS":
 		_poll_vision(delta)
+
+	var sensing := is_sensing_active()
+	if sensing != _was_sensing:
+		_was_sensing = sensing
+		sensing_active_changed.emit(sensing)
+
+	if not sensing and mouse_fallback:
+		_update_fallback_input(delta)
+
 	_hands = _build_hands()
 	hands_updated.emit(_hands)
 
@@ -131,8 +168,6 @@ func _ensure_vision_server() -> void:
 		vision_ready.emit(false)
 		return
 
-	# Prefer latest binary: stop any previous hand server holding the port.
-	# Godot 4: OS.execute(path, args, output: Array, ...)
 	if OS.get_name() == "macOS":
 		var _out: Array = []
 		OS.execute("killall", PackedStringArray(["macos_hand_server"]), _out)
@@ -270,12 +305,74 @@ func _is_vision_fresh() -> bool:
 
 
 func _build_hands() -> Array:
+	# Priority: live Vision hands
 	if use_vision and _is_vision_fresh() and not _vision_hands.is_empty():
 		return _vision_hands.duplicate()
-	# Pure motion: no mouse/keyboard synthetic hands.
+	# Fallback: mouse / keyboard synthetic hand
+	if mouse_fallback:
+		return _build_fallback_hands()
 	return []
 
 
-func inject_forward_burst(_amount: float = 0.1) -> void:
-	## No-op in pure motion mode (kept for API compat).
-	pass
+func _update_fallback_input(delta: float) -> void:
+	_fist_held = (
+		Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
+		or Input.is_physical_key_pressed(KEY_F)
+		or Input.is_action_pressed("fist_toggle")
+	)
+	_is_charging = (
+		Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+		or Input.is_action_pressed("charge_hold")
+		or always_open
+	)
+
+	var vp := get_viewport().get_visible_rect().size
+	var mouse := get_viewport().get_mouse_position()
+	if vp.x > 1.0 and vp.y > 1.0:
+		_prev_palm = _last_palm
+		_last_palm = Vector2(mouse.x / vp.x, mouse.y / vp.y)
+		_last_palm = _last_palm.clamp(Vector2(0.02, 0.02), Vector2(0.98, 0.98))
+
+	if Input.is_action_just_pressed("cast_debug"):
+		_hand_size = minf(0.22, _hand_size + 0.1)
+		_depth -= 0.04
+	else:
+		var vel := (_last_palm - _prev_palm) / maxf(delta, 0.001)
+		if _is_charging and vel.length() > 1.8:
+			_hand_size = minf(0.22, _hand_size + vel.length() * delta * 0.05)
+			_depth -= vel.length() * delta * 0.02
+		else:
+			_hand_size = lerpf(_hand_size, 0.08, 1.0 - exp(-3.0 * delta))
+			_depth = lerpf(_depth, 0.05, 1.0 - exp(-2.0 * delta))
+
+	if _fist_held:
+		_touch_open = lerpf(_touch_open, 0.04, 1.0 - exp(-16.0 * delta))
+	elif _is_charging or always_open:
+		_touch_open = lerpf(_touch_open, 0.95, 1.0 - exp(-9.0 * delta))
+	else:
+		_touch_open = lerpf(_touch_open, 0.32, 1.0 - exp(-4.0 * delta))
+
+
+func _build_fallback_hands() -> Array:
+	var now_ms := float(Time.get_ticks_msec())
+	var hands: Array = []
+	var open := 0.06 if _fist_held else _touch_open
+	var primary := HandMath.synthetic_open_hand(_last_palm, open, _hand_size, now_ms)
+	primary.depth = _depth
+	primary.handedness = "Right"
+	hands.append(primary)
+
+	if _second_hand_enabled and Input.is_physical_key_pressed(KEY_SHIFT):
+		var p2 := Vector2(1.0 - _last_palm.x, _last_palm.y)
+		var secondary := HandMath.synthetic_open_hand(p2, open * 0.9, _hand_size * 0.95, now_ms)
+		secondary.depth = _depth
+		secondary.handedness = "Left"
+		hands.append(secondary)
+	return hands
+
+
+func inject_forward_burst(amount: float = 0.1) -> void:
+	if is_sensing_active():
+		return
+	_hand_size = minf(0.26, _hand_size + amount)
+	_depth -= amount * 0.45

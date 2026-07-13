@@ -1,93 +1,113 @@
 class_name SpellProjectile
 extends Node2D
+## Single-facing projectile sprite + motion.
+## Atlas frames often face different angles — we pick a stable frame and
+## compensate with FACE_OFFSET so the tip always follows velocity.
 
 var spell: StringName = GameBus.SPELL_FIRE
 var velocity: Vector2 = Vector2.ZERO
 var radius: float = 22.0
-var life: float = 2.2
-var max_life: float = 2.2
+var life: float = 2.0
+var max_life: float = 2.0
 var power: float = 0.7
 var birth_scale: float = 1.0
 
-var _orb: Sprite2D
-var _mat: ShaderMaterial
-var _particles: GPUParticles2D
+## Radians: art's forward direction when node.rotation == 0.
+## Fire faces +X (~0). Frost faces down-right (~0.5). Lightning bolts vary — use first frame.
+## image2 projectiles face roughly +X (right). Lightning slightly up-right.
+const FACE_OFFSET := {
+	&"fire": 0.0,
+	&"frost": 0.0,
+	&"lightning": -0.32,
+}
+
+var _sprite: Sprite2D
+var _trail: Array = [] # trailing ghost sprites
+var _face: float = 0.0
 
 
 func setup(p_spell: StringName, p_power: float, dir: Vector2, speed: float) -> void:
 	spell = p_spell
 	power = clampf(p_power, 0.15, 1.0)
-	velocity = dir.normalized() * speed
-	radius = 18.0 + power * 14.0
-	birth_scale = 0.55 + power * 1.1
-	life = 2.2
-	max_life = 2.2
+	var d := dir.normalized()
+	if d.length_squared() < 0.0001:
+		d = Vector2.UP
+	velocity = d * speed
+	radius = 24.0 + power * 12.0
+	birth_scale = 0.9 + power * 0.4
+	life = 1.6
+	max_life = 1.6
+	_face = float(FACE_OFFSET.get(spell, 0.0))
 	_build_visuals()
+	_align_to_velocity()
 
 
 func _build_visuals() -> void:
-	_orb = Sprite2D.new()
-	_orb.centered = true
-	# 1x1 white texture; shader draws the orb
-	var img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
-	img.fill(Color.WHITE)
-	_orb.texture = ImageTexture.create_from_image(img)
-	_orb.scale = Vector2(90, 90) * birth_scale
-	_mat = ShaderMaterial.new()
-	_mat.shader = load("res://shaders/spell_orb.gdshader")
-	_apply_spell_colors()
-	_orb.material = _mat
-	add_child(_orb)
+	SpellVfxLibrary.ensure_loaded()
+	var frames: Array = SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_PROJECTILE)
+	var tex: Texture2D = null
+	if frames.size() > 0:
+		# Prefer a mid frame that is usually cleanest
+		var idx := mini(1, frames.size() - 1)
+		tex = frames[idx]
+	_sprite = Sprite2D.new()
+	_sprite.centered = true
+	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_sprite.texture = tex
+	_apply_size(_sprite, 96.0 + power * 40.0)
+	add_child(_sprite)
 
-	_particles = GPUParticles2D.new()
-	_particles.amount = 28
-	_particles.lifetime = 0.45
-	_particles.explosiveness = 0.05
-	_particles.local_coords = false
-	var pm := ParticleProcessMaterial.new()
-	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-	pm.emission_sphere_radius = 8.0
-	pm.direction = Vector3(0, 0, 0)
-	pm.spread = 180.0
-	pm.initial_velocity_min = 20.0
-	pm.initial_velocity_max = 80.0
-	pm.gravity = Vector3(0, 40, 0)
-	pm.scale_min = 1.5
-	pm.scale_max = 3.5
-	pm.color = GameBus.spell_accent(spell)
-	_particles.process_material = pm
-	_particles.texture = _orb.texture
-	add_child(_particles)
-	_particles.emitting = true
+	# Motion trail ghosts (common game trick)
+	for i in 3:
+		var g := Sprite2D.new()
+		g.centered = true
+		g.texture = tex
+		g.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		g.modulate = Color(1, 1, 1, 0.35 - i * 0.1)
+		g.z_index = -1 - i
+		_apply_size(g, (96.0 + power * 40.0) * (0.9 - i * 0.08))
+		add_child(g)
+		_trail.append(g)
 
 
-func _apply_spell_colors() -> void:
-	if _mat == null:
+func _apply_size(spr: Sprite2D, target_px: float) -> void:
+	if spr == null or spr.texture == null:
 		return
-	var mode := 0
-	if spell == GameBus.SPELL_FROST:
-		mode = 1
-	elif spell == GameBus.SPELL_LIGHTNING:
-		mode = 2
-	_mat.set_shader_parameter("mode", mode)
-	_mat.set_shader_parameter("core_color", GameBus.spell_core(spell))
-	_mat.set_shader_parameter("mid_color", GameBus.spell_accent(spell))
-	_mat.set_shader_parameter("outer_color", GameBus.spell_color(spell))
-	_mat.set_shader_parameter("intensity", 0.85 + power * 0.7)
-	_mat.set_shader_parameter("time_scale", 1.2 if spell != GameBus.SPELL_LIGHTNING else 2.2)
+	var longest := maxf(spr.texture.get_size().x, spr.texture.get_size().y)
+	var s := (target_px * birth_scale) / maxf(longest, 1.0)
+	spr.scale = Vector2(s, s)
+
+
+func _align_to_velocity() -> void:
+	# rotation so sprite forward matches velocity
+	rotation = velocity.angle() - _face
 
 
 func tick(dt: float, elapsed: float) -> bool:
-	## Returns true if still alive.
+	# Store previous positions for trail
+	var prev := global_position
 	position += velocity * dt
 	life -= dt
+
 	if spell == GameBus.SPELL_LIGHTNING:
-		position.x += sin(elapsed * 40.0 + float(get_instance_id() % 100)) * 40.0 * dt
+		# small lateral wobble without changing facing much
+		position += velocity.orthogonal().normalized() * sin(elapsed * 30.0) * 12.0 * dt
+
+	_align_to_velocity()
+
+	# Trail ghosts sit slightly behind along -velocity
+	var back := -velocity.normalized()
+	for i in _trail.size():
+		var g: Sprite2D = _trail[i]
+		if g:
+			g.position = back * (14.0 + i * 16.0)
+			g.rotation = 0.0 # inherits parent rotation
+			g.modulate.a = clampf(0.32 - i * 0.08, 0.05, 0.4)
+
 	var life_t := clampf(life / max_life, 0.0, 1.0)
-	var s := birth_scale * (0.5 + life_t * 0.6)
-	if _orb:
-		_orb.scale = Vector2(90, 90) * s
-		_orb.rotation += dt * (3.5 if spell == GameBus.SPELL_LIGHTNING else 2.0)
+	if _sprite:
+		_apply_size(_sprite, (96.0 + power * 40.0) * (0.9 + life_t * 0.15))
+
 	return life > 0.0
 
 

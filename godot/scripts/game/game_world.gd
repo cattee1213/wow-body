@@ -8,7 +8,7 @@ signal defeated(score: int, kills: int)
 
 const PLAYER_MAX_HP := 5
 const MONSTER_BASE_HP := 3
-const BASE_SPEED := 820.0
+const BASE_SPEED := 1550.0
 const LIGHTNING_SPLASH_RADIUS := 170.0
 const LIGHTNING_SPLASH_RATIO := 0.55
 
@@ -66,32 +66,42 @@ func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
 	if game_over:
 		return
 	var vp := get_viewport_rect().size
-	var origin := Vector2(from_norm.x * vp.x, from_norm.y * vp.y)
-	var target := Vector2(origin.x, 40.0)
+	var palm := Vector2(from_norm.x * vp.x, from_norm.y * vp.y)
+
+	# Prefer nearest monster in the upper field; else straight up from palm.
+	var target := Vector2(palm.x, 48.0)
 	var best := INF
 	for m in _monsters:
-		if not is_instance_valid(m):
+		if not is_instance_valid(m) or m.hp <= 0.0:
 			continue
-		var d: float = origin.distance_to(m.position)
+		# Slightly prefer monsters above the palm (typical arena layout)
+		var d: float = palm.distance_to(m.position)
+		if m.position.y > palm.y + 20.0:
+			d *= 1.35
 		if d < best:
 			best = d
+			# Aim at body center
 			target = m.position
 
-	var dir := (target - origin)
+	var dir := (target - palm)
 	if dir.length_squared() < 0.001:
 		dir = Vector2(0, -1)
-	var speed := BASE_SPEED * (0.9 + clampf(power, 0.0, 1.0) * 0.25)
+	dir = dir.normalized()
+
+	# Spawn slightly in front of palm so sprite doesn't cover the hand
+	var origin := palm + dir * 36.0
+	var speed := BASE_SPEED * (1.0 + clampf(power, 0.0, 1.0) * 0.2)
 	var proj := SpellProjectile.new()
 	projectile_layer.add_child(proj)
 	proj.global_position = origin
 	proj.setup(spell, power, dir, speed)
 	_projectiles.append(proj)
 
-	_burst(origin, GameBus.spell_accent(spell), 12 + int(power * 10))
+	_spawn_cast_flash(palm, spell, power)
 	if _sfx:
 		_sfx.play_spell(spell)
 	message = GameBus.spell_cast_text(spell)
-	message_ttl = 0.75
+	message_ttl = 0.55
 	emit_signal("state_changed")
 
 
@@ -186,8 +196,7 @@ func _physics_process(dt: float) -> void:
 func _apply_projectile_hit(p: SpellProjectile, primary: Monster) -> void:
 	var dmg: float = p.damage()
 	primary.apply_hit(dmg, p.spell, p.power)
-	_burst(p.position, GameBus.spell_color(p.spell), 16 + int(p.power * 8))
-	_hit_ring(primary.position, p.spell)
+	_spawn_impact(p.position, p.spell, p.power)
 	score += int(10 * dmg)
 
 	if p.spell == GameBus.SPELL_FIRE:
@@ -196,14 +205,13 @@ func _apply_projectile_hit(p: SpellProjectile, primary: Monster) -> void:
 	elif p.spell == GameBus.SPELL_FROST:
 		message = "减速！"
 		message_ttl = 0.55
-		_frost_burst(primary.position)
 	elif p.spell == GameBus.SPELL_LIGHTNING:
 		_lightning_splash(primary, dmg, p.power)
 		message = "闪电溅射！"
 		message_ttl = 0.6
 
 	if primary.hp <= 0.0:
-		_kill_monster(primary, GameBus.spell_accent(p.spell))
+		_kill_monster(primary, p.spell)
 
 
 func _lightning_splash(primary: Monster, base_dmg: float, power: float) -> void:
@@ -225,19 +233,19 @@ func _lightning_splash(primary: Monster, base_dmg: float, power: float) -> void:
 		m.apply_hit(splash_dmg, GameBus.SPELL_LIGHTNING, power * 0.7)
 		score += int(8 * splash_dmg)
 		_chain_bolt(primary.position, m.position)
-		_burst(m.position, GameBus.spell_accent(GameBus.SPELL_LIGHTNING), 12)
+		_spawn_impact(m.position, GameBus.SPELL_LIGHTNING, power * 0.6)
 		if m.hp <= 0.0:
-			_kill_monster(m, GameBus.spell_core(GameBus.SPELL_LIGHTNING))
+			_kill_monster(m, GameBus.SPELL_LIGHTNING)
 	if n > 0:
 		shake = maxf(shake, 0.18)
 
 
-func _kill_monster(m: Monster, burst_color: Color) -> void:
+func _kill_monster(m: Monster, spell: StringName = GameBus.SPELL_FIRE) -> void:
 	if not is_instance_valid(m):
 		return
 	kills += 1
 	score += 40
-	_burst(m.position, burst_color, 26)
+	_spawn_impact(m.position, spell, 0.95)
 	shake = maxf(shake, 0.25)
 	_monsters.erase(m)
 	m.queue_free()
@@ -273,6 +281,78 @@ func _make_monster() -> Monster:
 	m.add_child(hp_fill)
 	return m
 
+
+func _spawn_cast_flash(pos: Vector2, spell: StringName, power: float) -> void:
+	## 出手爆发：蓄力漩涡放大 + 第二层 hold 闪光（双层叠加，常见做法）。
+	SpellVfxLibrary.ensure_loaded()
+	var charge_frames := SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_CHARGE)
+	var hold_frames := SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_HOLD)
+	var node := Node2D.new()
+	node.position = pos
+	fx_layer.add_child(node)
+
+	if charge_frames.size() > 0:
+		var a := AnimatedVfxSprite.new()
+		a.setup(charge_frames, 24.0, false, 100.0 + power * 50.0)
+		node.add_child(a)
+	if hold_frames.size() > 0:
+		var b := AnimatedVfxSprite.new()
+		b.setup(hold_frames, 20.0, false, 80.0 + power * 30.0)
+		b.modulate = Color(1, 1, 1, 0.85)
+		node.add_child(b)
+
+	var tw := create_tween()
+	tw.tween_property(node, "scale", Vector2(1.55, 1.55), 0.14).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(node, "modulate:a", 0.0, 0.22)
+	tw.tween_callback(node.queue_free)
+
+
+func _spawn_impact(pos: Vector2, spell: StringName, power: float = 0.7) -> void:
+	## 击中：主 impact 动画 + 放大层 + 轻微屏幕震（多层合成）。
+	SpellVfxLibrary.ensure_loaded()
+	var frames := SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_IMPACT)
+	if frames.is_empty():
+		return
+
+	var root := Node2D.new()
+	root.position = pos
+	fx_layer.add_child(root)
+
+	# Main impact animation
+	var main := AnimatedVfxSprite.new()
+	main.setup(frames, 18.0, false, 120.0 + power * 55.0)
+	root.add_child(main)
+
+	# Second layer: larger, additive-looking flash (first frame)
+	var flash := Sprite2D.new()
+	flash.centered = true
+	flash.texture = frames[0]
+	flash.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	var longest := maxf(frames[0].get_size().x, frames[0].get_size().y)
+	var fs := (160.0 + power * 60.0) / maxf(longest, 1.0)
+	flash.scale = Vector2(fs, fs) * 0.6
+	flash.modulate = Color(1, 1, 1, 0.75)
+	flash.z_index = -1
+	root.add_child(flash)
+
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flash, "scale", Vector2(fs, fs) * 1.35, 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flash, "modulate:a", 0.0, 0.2)
+	tw.tween_property(root, "scale", Vector2(1.15, 1.15), 0.1)
+	tw.chain().tween_interval(0.05)
+
+	main.anim_finished.connect(func():
+		if is_instance_valid(root):
+			var tw2 := create_tween()
+			tw2.tween_property(root, "modulate:a", 0.0, 0.08)
+			tw2.tween_callback(root.queue_free)
+	)
+	get_tree().create_timer(0.9).timeout.connect(func():
+		if is_instance_valid(root):
+			root.queue_free()
+	)
+	shake = maxf(shake, 0.12 + power * 0.1)
 
 func _burst(pos: Vector2, color: Color, count: int) -> void:
 	var parts := GPUParticles2D.new()
