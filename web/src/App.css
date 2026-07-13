@@ -37,6 +37,148 @@
   height: 100%;
   display: block;
   touch-action: none;
+  z-index: 2;
+}
+
+/* —— SVG flame layer —— */
+.flame-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.palm-flame-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120px;
+  height: 140px;
+  opacity: 0;
+  will-change: transform, opacity;
+  transition: opacity 0.08s linear;
+  filter: drop-shadow(0 0 12px rgba(255, 120, 20, 0.65));
+}
+
+.palm-flame-svg {
+  display: block;
+  width: 120px;
+  height: 140px;
+  overflow: visible;
+}
+
+.flame-wobble {
+  transform-origin: 60px 110px;
+  animation: flame-wobble 0.45s ease-in-out infinite alternate;
+}
+
+.flame-tongue--a {
+  transform-origin: 60px 120px;
+  animation: tongue-flick 0.55s ease-in-out infinite alternate;
+}
+
+.flame-tongue--b {
+  transform-origin: 60px 118px;
+  animation: tongue-flick 0.4s ease-in-out infinite alternate-reverse;
+}
+
+.flame-spark {
+  animation: spark-rise 0.9s ease-out infinite;
+}
+
+.flame-spark.s2 {
+  animation-delay: 0.2s;
+}
+
+.flame-spark.s3 {
+  animation-delay: 0.45s;
+}
+
+.fireball-root {
+  position: absolute;
+  inset: 0;
+}
+
+.fireball-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100px;
+  height: 100px;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 0 14px rgba(255, 100, 10, 0.8));
+}
+
+.fireball-svg {
+  display: block;
+  width: 100px;
+  height: 100px;
+  overflow: visible;
+}
+
+.fireball-spin {
+  transform-origin: 50px 50px;
+  animation: fireball-spin 0.7s linear infinite;
+}
+
+.fireball-lick {
+  transform-origin: 50px 50px;
+  animation: lick-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.fireball-lick--2 {
+  animation-duration: 0.28s;
+  animation-direction: alternate-reverse;
+}
+
+@keyframes flame-wobble {
+  from {
+    transform: scale(1, 1) rotate(-3deg);
+  }
+  to {
+    transform: scale(1.06, 0.94) rotate(3deg);
+  }
+}
+
+@keyframes tongue-flick {
+  from {
+    transform: scaleY(1) translateY(0);
+  }
+  to {
+    transform: scaleY(1.12) translateY(-4px);
+  }
+}
+
+@keyframes spark-rise {
+  0% {
+    opacity: 0.9;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.4);
+  }
+}
+
+@keyframes fireball-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lick-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.65;
+  }
+  to {
+    transform: scale(1.15);
+    opacity: 0.95;
+  }
 }
 
 .overlay-panel {

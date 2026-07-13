@@ -10,8 +10,10 @@ export interface Point2D {
 export interface HandSample {
   /** Normalized 0–1, already mirrored to match selfie video. */
   palm: Point2D
-  /** 0 open palm → 1 fist-ish openness inverse; higher = more open. */
+  /** 0 closed → 1 fully open. */
   openness: number
+  /** Approximate hand span in normalized image space (grows when closer to camera). */
+  handSize: number
   /** Depth relative to wrist (MediaPipe z). Smaller ≈ closer to camera. */
   depth: number
   landmarks: Point2D[]
@@ -20,13 +22,17 @@ export interface HandSample {
 
 export interface GestureState {
   phase: GesturePhase
+  /** 0–1, driven by palm openness (for flame size / HUD). */
   charge: number
+  /** Continuous palm openness (smoothed), drives flame scale. */
+  openness: number
   cooldownMs: number
   lastCastAt: number
   debug: {
     openness: number
-    speed: number
-    palmY: number
+    /** Forward speed toward camera (higher = thrusting at camera). */
+    forward: number
+    handSize: number
   }
 }
 
@@ -39,6 +45,9 @@ export interface Fireball {
   radius: number
   life: number
   maxLife: number
+  /** Initial visual scale for SVG (from palm flame size at cast). */
+  birthScale: number
+  spin: number
 }
 
 export interface Monster {

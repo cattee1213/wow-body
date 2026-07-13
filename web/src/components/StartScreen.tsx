@@ -23,13 +23,13 @@ export function StartScreen({
         <p className="eyebrow">WoW Body · Web</p>
         <h1>火球术施法训练</h1>
         <p className="lead">
-          用摄像头捕捉手部动作：张开手掌蓄力，向前或向上甩出，向对面怪物丢出火球。
+          用摄像头捕捉手部：张开手掌聚火（火焰随开掌大小变化），向前推掌即可发射火球。
         </p>
 
         <ol className="howto">
           <li>允许浏览器使用摄像头（建议前置）</li>
-          <li>把手伸到画面中，张开手掌蓄力</li>
-          <li>快速向前推掌 / 向上甩手施放火球</li>
+          <li>把手伸到画面中，张开手掌 — 掌心出现火焰</li>
+          <li>向前推掌（朝向摄像头）发射火球</li>
           <li>调试可用空格键施法、R 键重开</li>
         </ol>
 

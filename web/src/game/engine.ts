@@ -1,9 +1,10 @@
 import type { Fireball, GameState, Monster, Particle, Point2D } from '../types'
+import { flameScaleFromOpenness } from './gesture'
 
 const PLAYER_MAX_HP = 5
 const MONSTER_BASE_HP = 3
-const FIREBALL_SPEED = 780
-const FIREBALL_RADIUS = 18
+const FIREBALL_SPEED = 820
+const FIREBALL_RADIUS = 22
 
 export function createGameState(width: number, height: number): GameState {
   return {
@@ -18,7 +19,7 @@ export function createGameState(width: number, height: number): GameState {
     playerHp: PLAYER_MAX_HP,
     maxPlayerHp: PLAYER_MAX_HP,
     shake: 0,
-    message: '张开手掌蓄力，向前/向上甩出火球！',
+    message: '张开手掌聚火，向前推掌发射火球！',
     messageTtl: 4,
     elapsed: 0,
     nextMonsterId: 1,
@@ -52,13 +53,17 @@ function spawnMonster(state: GameState) {
   state.monsters.push(monster)
 }
 
-export function castFireball(state: GameState, from: Point2D) {
+export function castFireball(
+  state: GameState,
+  from: Point2D,
+  openness = 0.7,
+) {
   if (state.gameOver) return
 
   const originX = from.x * state.width
   const originY = from.y * state.height
 
-  // Aim at nearest living monster; otherwise shoot straight up.
+  // Aim at nearest living monster; otherwise shoot straight up the lane.
   let targetX = originX
   let targetY = 40
   let best = Infinity
@@ -76,6 +81,7 @@ export function castFireball(state: GameState, from: Point2D) {
   const dy = targetY - originY
   const len = Math.hypot(dx, dy) || 1
   const speed = FIREBALL_SPEED
+  const birthScale = flameScaleFromOpenness(openness) * 0.85
 
   const ball: Fireball = {
     id: state.nextFireballId++,
@@ -83,14 +89,16 @@ export function castFireball(state: GameState, from: Point2D) {
     y: originY,
     vx: (dx / len) * speed,
     vy: (dy / len) * speed,
-    radius: FIREBALL_RADIUS,
+    radius: FIREBALL_RADIUS * (0.75 + openness * 0.4),
     life: 2.2,
     maxLife: 2.2,
+    birthScale,
+    spin: Math.random() * 360,
   }
   state.fireballs.push(ball)
-  burst(state, originX, originY, '#ffb347', 10)
+  burst(state, originX, originY, '#ffb347', 12)
   state.message = '火球术！'
-  state.messageTtl = 0.8
+  state.messageTtl = 0.7
 }
 
 function burst(
@@ -102,7 +110,7 @@ function burst(
 ) {
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2
-    const speed = 40 + Math.random() * 160
+    const speed = 40 + Math.random() * 180
     const p: Particle = {
       id: state.nextParticleId++,
       x,
@@ -112,7 +120,7 @@ function burst(
       life: 0.35 + Math.random() * 0.35,
       maxLife: 0.7,
       color,
-      size: 2 + Math.random() * 4,
+      size: 2 + Math.random() * 5,
     }
     state.particles.push(p)
   }
@@ -128,7 +136,6 @@ export function updateGame(state: GameState, dt: number) {
   state.shake = Math.max(0, state.shake - dt * 10)
   if (state.messageTtl > 0) state.messageTtl -= dt
 
-  // Wave scaling
   const targetCount = Math.min(2 + Math.floor(state.wave / 2), 6)
   state.spawnTimer -= dt
   if (state.monsters.length < targetCount && state.spawnTimer <= 0) {
@@ -144,7 +151,6 @@ export function updateGame(state: GameState, dt: number) {
     }
   }
 
-  // Monsters patrol horizontally; slowly pressure player if too many survive long
   for (const m of state.monsters) {
     m.x += m.vx * dt
     if (m.x < m.radius || m.x > state.width - m.radius) {
@@ -152,10 +158,8 @@ export function updateGame(state: GameState, dt: number) {
       m.x = Math.max(m.radius, Math.min(state.width - m.radius, m.x))
     }
     m.hitFlash = Math.max(0, m.hitFlash - dt)
-    // Creep downward slightly over time
     m.y += 6 * dt
     if (m.y > state.height * 0.55) {
-      // Monster breaks through → damage player and despawn
       state.playerHp -= 1
       state.shake = 0.5
       burst(state, m.x, m.y, '#ff4d4d', 14)
@@ -166,11 +170,11 @@ export function updateGame(state: GameState, dt: number) {
   }
   state.monsters = state.monsters.filter((m) => m.hp > 0)
 
-  // Fireballs
   for (const f of state.fireballs) {
     f.x += f.vx * dt
     f.y += f.vy * dt
     f.life -= dt
+    f.spin += 220 * dt
 
     for (const m of state.monsters) {
       const d = Math.hypot(f.x - m.x, f.y - m.y)
@@ -178,12 +182,12 @@ export function updateGame(state: GameState, dt: number) {
         m.hp -= 1
         m.hitFlash = 0.2
         f.life = 0
-        burst(state, f.x, f.y, '#ff6a00', 16)
+        burst(state, f.x, f.y, '#ff6a00', 18)
         state.score += 10
         if (m.hp <= 0) {
           state.kills += 1
           state.score += 40
-          burst(state, m.x, m.y, '#ffd27a', 24)
+          burst(state, m.x, m.y, '#ffd27a', 26)
           state.shake = 0.25
         }
         break
@@ -193,13 +197,12 @@ export function updateGame(state: GameState, dt: number) {
   state.fireballs = state.fireballs.filter(
     (f) =>
       f.life > 0 &&
-      f.x > -40 &&
-      f.x < state.width + 40 &&
-      f.y > -40 &&
-      f.y < state.height + 40,
+      f.x > -60 &&
+      f.x < state.width + 60 &&
+      f.y > -60 &&
+      f.y < state.height + 60,
   )
 
-  // Particles
   for (const p of state.particles) {
     p.x += p.vx * dt
     p.y += p.vy * dt

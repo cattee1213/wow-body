@@ -58,7 +58,7 @@ function App() {
 
       {playing && (
         <div className="corner-tip">
-          张开手掌蓄力 · 甩出施法 · 空格调试 · R 重开
+          张开手掌聚火 · 向前推掌发射 · 空格调试 · R 重开
         </div>
       )}
     </div>

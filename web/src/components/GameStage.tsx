@@ -18,6 +18,7 @@ import {
   drawVignette,
 } from '../game/render'
 import type { HandSample } from '../types'
+import { FlameLayer, type FlameLayerHandle } from './FlameLayer'
 
 interface GameStageProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
@@ -27,6 +28,7 @@ interface GameStageProps {
 
 export function GameStage({ videoRef, detect, active }: GameStageProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const flameRef = useRef<FlameLayerHandle | null>(null)
   const gameRef = useRef(createGameState(1, 1))
   const gestureRef = useRef(createGestureState())
   const historyRef = useRef<HistoryPoint[]>([])
@@ -66,10 +68,10 @@ export function GameStage({ videoRef, detect, active }: GameStageProps) {
           restartGame(g)
           return
         }
-        castFireball(g, sample?.palm ?? { x: 0.5, y: 0.7 })
+        const open = gestureRef.current.openness || 0.7
+        castFireball(g, sample?.palm ?? { x: 0.5, y: 0.7 }, open)
         gestureRef.current.phase = 'cooldown'
-        gestureRef.current.cooldownMs = 400
-        gestureRef.current.charge = 0
+        gestureRef.current.cooldownMs = 200
       }
       if (e.code === 'KeyR') {
         restartGame(gameRef.current)
@@ -99,9 +101,8 @@ export function GameStage({ videoRef, detect, active }: GameStageProps) {
           sample = detected
           lastSampleRef.current = detected
         } else {
-          // Keep last sample briefly for casting origin smoothness
           const prev = lastSampleRef.current
-          if (prev && ts - prev.timestamp < 120) sample = prev
+          if (prev && ts - prev.timestamp < 140) sample = prev
           else lastSampleRef.current = null
         }
       }
@@ -114,7 +115,7 @@ export function GameStage({ videoRef, detect, active }: GameStageProps) {
         ts,
       )
       if (didCast && sample) {
-        castFireball(game, sample.palm)
+        castFireball(game, sample.palm, gesture.openness)
       }
 
       updateGame(game, dt)
@@ -123,6 +124,22 @@ export function GameStage({ videoRef, detect, active }: GameStageProps) {
       drawVignette(ctx, game.width, game.height)
       if (sample) drawHand(ctx, sample, game.width, game.height, gesture)
       drawGame(ctx, game, gesture)
+
+      // SVG flame layer
+      const fx = flameRef.current
+      if (fx) {
+        if (sample && gesture.openness > 0.04) {
+          fx.syncPalm(
+            true,
+            sample.palm.x * game.width,
+            sample.palm.y * game.height,
+            gesture.openness,
+          )
+        } else {
+          fx.syncPalm(false, game.width * 0.5, game.height * 0.7, 0)
+        }
+        fx.syncFireballs(game.fireballs)
+      }
 
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -138,5 +155,10 @@ export function GameStage({ videoRef, detect, active }: GameStageProps) {
     }
   }, [active, detect, videoRef])
 
-  return <canvas ref={canvasRef} className="game-canvas" />
+  return (
+    <>
+      <canvas ref={canvasRef} className="game-canvas" />
+      <FlameLayer ref={flameRef} />
+    </>
+  )
 }

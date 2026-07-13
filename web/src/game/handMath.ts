@@ -58,6 +58,10 @@ function dist(a: Point2D, b: Point2D): number {
   return Math.hypot(dx, dy)
 }
 
+function clamp(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v))
+}
+
 /**
  * Convert MediaPipe landmarks (image space) to selfie-mirrored normalized points.
  * Video is drawn with scaleX(-1), so we mirror x to keep overlay aligned.
@@ -74,20 +78,31 @@ export function landmarksToSample(
 
   const wrist = landmarks[LM.WRIST]
   const middleMcp = landmarks[LM.MIDDLE_MCP]
+  const indexMcp = landmarks[LM.INDEX_MCP]
+  const pinkyMcp = landmarks[LM.PINKY_MCP]
+
   const palm: Point2D = {
-    x: (wrist.x + middleMcp.x) / 2,
-    y: (wrist.y + middleMcp.y) / 2,
+    x: (wrist.x + middleMcp.x + indexMcp.x + pinkyMcp.x) / 4,
+    y: (wrist.y + middleMcp.y + indexMcp.y + pinkyMcp.y) / 4,
   }
 
+  // Hand size: palm span — grows when hand moves toward the camera.
+  const handSize = Math.max(
+    dist(wrist, middleMcp),
+    dist(indexMcp, pinkyMcp),
+    0.015,
+  )
+
   // Openness: fingertip distance from palm, relative to hand size.
-  const handSize = Math.max(dist(wrist, middleMcp), 0.02)
   let tipSum = 0
   for (const tip of FINGER_TIPS) {
     tipSum += dist(landmarks[tip], palm)
   }
-  const openness = Math.min(1.4, tipSum / (FINGER_TIPS.length * handSize)) / 1.4
+  const rawOpen = tipSum / (FINGER_TIPS.length * handSize)
+  // Soft curve so partial open already reads as charging.
+  const openness = clamp((rawOpen - 0.55) / 1.35, 0, 1)
 
   const depth = raw[LM.MIDDLE_MCP]?.z ?? 0
 
-  return { palm, openness, depth, landmarks, timestamp }
+  return { palm, openness, handSize, depth, landmarks, timestamp }
 }
