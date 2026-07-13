@@ -1,3 +1,4 @@
+import { SPELLS } from './spells'
 import { getHandConnections } from './handMath'
 import type { GameState, GestureState, HandSample } from '../types'
 
@@ -28,7 +29,19 @@ export function drawVignette(
   ctx.fillRect(0, 0, width, height)
 }
 
-export function drawHand(
+export function drawHands(
+  ctx: CanvasRenderingContext2D,
+  hands: HandSample[],
+  width: number,
+  height: number,
+  gesture: GestureState,
+) {
+  for (const sample of hands) {
+    drawOneHand(ctx, sample, width, height, gesture)
+  }
+}
+
+function drawOneHand(
   ctx: CanvasRenderingContext2D,
   sample: HandSample,
   width: number,
@@ -40,12 +53,15 @@ export function drawHand(
     y: p.y * height,
   }))
 
-  const open = gesture.openness
-  ctx.lineWidth = 2.5
-  ctx.strokeStyle =
-    open > 0.15
-      ? `rgba(255, 160, 50, ${0.35 + open * 0.55})`
-      : 'rgba(120, 200, 255, 0.7)'
+  const spell = SPELLS[gesture.spell]
+  ctx.lineWidth = sample.isFist ? 3.5 : 2.5
+  if (sample.isFist) {
+    ctx.strokeStyle = 'rgba(220, 220, 255, 0.85)'
+  } else {
+    const a = 0.35 + Math.max(gesture.charge, sample.openness) * 0.55
+    ctx.strokeStyle = hexAlpha(spell.accent, a)
+  }
+
   ctx.beginPath()
   for (const [a, b] of getHandConnections()) {
     const pa = pts[a]
@@ -57,8 +73,10 @@ export function drawHand(
 
   for (const p of pts) {
     ctx.beginPath()
-    ctx.fillStyle = 'rgba(255, 240, 210, 0.92)'
-    ctx.arc(p.x, p.y, 3.2, 0, Math.PI * 2)
+    ctx.fillStyle = sample.isFist
+      ? 'rgba(200, 210, 255, 0.95)'
+      : 'rgba(255, 240, 210, 0.92)'
+    ctx.arc(p.x, p.y, sample.isFist ? 4 : 3.2, 0, Math.PI * 2)
     ctx.fill()
   }
 }
@@ -86,12 +104,12 @@ export function drawGame(
     drawMonster(ctx, m)
   }
 
-  // Soft trail under SVG fireballs
   for (const f of state.fireballs) {
     const t = f.life / f.maxLife
+    const col = SPELLS[f.spell].color
     const g = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, f.radius * 1.8)
-    g.addColorStop(0, `rgba(255, 180, 60, ${0.25 * t})`)
-    g.addColorStop(1, 'rgba(255, 40, 0, 0)')
+    g.addColorStop(0, hexAlpha(col, 0.28 * t))
+    g.addColorStop(1, hexAlpha(col, 0))
     ctx.fillStyle = g
     ctx.beginPath()
     ctx.arc(f.x, f.y, f.radius * 1.8, 0, Math.PI * 2)
@@ -193,21 +211,63 @@ function drawHud(
     ctx.fill()
   }
 
-  const gx = state.width - 180
-  ctx.fillStyle = 'rgba(0,0,0,0.45)'
-  ctx.fillRect(gx - 8, pad - 10, 172, 78)
+  // Larger charge / spell panel (top-right)
+  const panelW = 248
+  const panelH = 128
+  const gx = state.width - panelW - 12
+  const gy = pad - 6
+  const spell = SPELLS[gesture.spell]
+
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  roundRect(ctx, gx, gy, panelW, panelH, 12)
+  ctx.fill()
+  ctx.strokeStyle = hexAlpha(spell.accent, 0.45)
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+
+  ctx.font = '700 18px system-ui, sans-serif'
+  ctx.fillStyle = spell.accent
+  ctx.fillText(`${spell.badge} ${spell.name}`, gx + 14, gy + 28)
+
+  ctx.font = '600 14px system-ui, sans-serif'
   ctx.fillStyle = '#f6e7c1'
-  ctx.fillText(`状态 ${labelPhase(gesture.phase)}`, gx, pad + 12)
-  ctx.fillStyle = 'rgba(255,255,255,0.2)'
-  ctx.fillRect(gx, pad + 28, 140, 10)
-  ctx.fillStyle = '#ff9f1c'
-  ctx.fillRect(gx, pad + 28, 140 * gesture.openness, 10)
-  ctx.fillStyle = '#9aa3b2'
+  ctx.fillText(`状态 ${labelPhase(gesture.phase)}`, gx + 14, gy + 52)
+
+  // Big charge bar
+  const barX = gx + 14
+  const barY = gy + 66
+  const barW = panelW - 28
+  const barH = 18
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'
+  roundRect(ctx, barX, barY, barW, barH, 8)
+  ctx.fill()
+
+  const chargeW = barW * gesture.charge
+  if (chargeW > 0) {
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0)
+    grad.addColorStop(0, spell.color)
+    grad.addColorStop(1, spell.accent)
+    ctx.fillStyle = grad
+    roundRect(ctx, barX, barY, chargeW, barH, 8)
+    ctx.fill()
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+  ctx.lineWidth = 1
+  roundRect(ctx, barX, barY, barW, barH, 8)
+  ctx.stroke()
+
   ctx.font = '12px system-ui, sans-serif'
+  ctx.fillStyle = '#c5c9d4'
   ctx.fillText(
-    `开掌 ${gesture.debug.openness.toFixed(2)}  向前 ${gesture.debug.forward.toFixed(2)}`,
-    gx,
-    pad + 56,
+    `蓄力 ${(gesture.charge * 100).toFixed(0)}%  ·  开掌 ${gesture.debug.openness.toFixed(2)}  ·  向前 ${gesture.debug.forward.toFixed(2)}`,
+    gx + 14,
+    gy + 104,
+  )
+  ctx.fillStyle = '#9aa3b2'
+  ctx.fillText(
+    `双手 ${gesture.debug.hands}  ·  握拳切法术  ·  推掌释放`,
+    gx + 14,
+    gy + 120,
   )
 
   if (state.messageTtl > 0 && state.message) {
@@ -222,7 +282,7 @@ function drawHud(
       tw + 32,
       44,
     )
-    ctx.fillStyle = '#ffd27a'
+    ctx.fillStyle = spell.accent
     ctx.fillText(text, state.width / 2, state.height * 0.42)
     ctx.textAlign = 'left'
   }
@@ -250,10 +310,42 @@ function labelPhase(phase: GestureState['phase']): string {
     case 'idle':
       return '待机'
     case 'charging':
-      return '聚火'
-    case 'cast':
-      return '施法'
+      return '蓄力中'
     case 'cooldown':
       return '冷却'
   }
+}
+
+function hexAlpha(hex: string, a: number): string {
+  const h = hex.replace('#', '')
+  const full =
+    h.length === 3
+      ? h
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : h
+  const n = parseInt(full, 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return `rgba(${r},${g},${b},${a})`
+}
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const rr = Math.min(r, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + rr, y)
+  ctx.arcTo(x + w, y, x + w, y + h, rr)
+  ctx.arcTo(x + w, y + h, x, y + h, rr)
+  ctx.arcTo(x, y + h, x, y, rr)
+  ctx.arcTo(x, y, x + w, y, rr)
+  ctx.closePath()
 }

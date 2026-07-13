@@ -11,7 +11,7 @@ const MODEL_URL =
 export interface UseHandLandmarkerResult {
   ready: boolean
   error: string | null
-  detect: (video: HTMLVideoElement, timestampMs: number) => HandSample | null
+  detect: (video: HTMLVideoElement, timestampMs: number) => HandSample[]
 }
 
 export function useHandLandmarker(): UseHandLandmarkerResult {
@@ -19,42 +19,38 @@ export function useHandLandmarker(): UseHandLandmarkerResult {
   const [ready, setReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const lastVideoTimeRef = useRef(-1)
+  const lastHandsRef = useRef<HandSample[]>([])
 
   useEffect(() => {
     let cancelled = false
 
+    async function create(delegate: 'GPU' | 'CPU') {
+      const vision = await FilesetResolver.forVisionTasks(WASM_CDN)
+      return HandLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: MODEL_URL,
+          delegate,
+        },
+        runningMode: 'VIDEO',
+        numHands: 2,
+        minHandDetectionConfidence: 0.55,
+        minHandPresenceConfidence: 0.55,
+        minTrackingConfidence: 0.5,
+      })
+    }
+
     async function init() {
       try {
-        const vision = await FilesetResolver.forVisionTasks(WASM_CDN)
-        const landmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: MODEL_URL,
-            delegate: 'GPU',
-          },
-          runningMode: 'VIDEO',
-          numHands: 1,
-          minHandDetectionConfidence: 0.6,
-          minHandPresenceConfidence: 0.6,
-          minTrackingConfidence: 0.5,
-        })
+        const landmarker = await create('GPU')
         if (cancelled) {
           landmarker.close()
           return
         }
         landmarkerRef.current = landmarker
         setReady(true)
-      } catch (err) {
-        // GPU may fail on some devices — retry CPU
+      } catch {
         try {
-          const vision = await FilesetResolver.forVisionTasks(WASM_CDN)
-          const landmarker = await HandLandmarker.createFromOptions(vision, {
-            baseOptions: {
-              modelAssetPath: MODEL_URL,
-              delegate: 'CPU',
-            },
-            runningMode: 'VIDEO',
-            numHands: 1,
-          })
+          const landmarker = await create('CPU')
           if (cancelled) {
             landmarker.close()
             return
@@ -65,9 +61,7 @@ export function useHandLandmarker(): UseHandLandmarkerResult {
           const message =
             fallbackErr instanceof Error
               ? fallbackErr.message
-              : err instanceof Error
-                ? err.message
-                : '手部模型加载失败'
+              : '手部模型加载失败'
           if (!cancelled) setError(message)
         }
       }
@@ -83,19 +77,31 @@ export function useHandLandmarker(): UseHandLandmarkerResult {
   }, [])
 
   const detect = useCallback(
-    (video: HTMLVideoElement, timestampMs: number): HandSample | null => {
+    (video: HTMLVideoElement, timestampMs: number): HandSample[] => {
       const landmarker = landmarkerRef.current
-      if (!landmarker || video.readyState < 2) return null
+      if (!landmarker || video.readyState < 2) return lastHandsRef.current
 
-      // MediaPipe requires strictly increasing timestamps; skip duplicate frames.
-      if (video.currentTime === lastVideoTimeRef.current) return null
+      // Skip duplicate video frames; keep last hands briefly for stability.
+      if (video.currentTime === lastVideoTimeRef.current) {
+        return lastHandsRef.current
+      }
       lastVideoTimeRef.current = video.currentTime
 
       const result = landmarker.detectForVideo(video, timestampMs)
-      const hand = result.landmarks[0]
-      if (!hand || hand.length < 21) return null
+      const hands: HandSample[] = []
 
-      return landmarksToSample(hand, timestampMs, true)
+      for (let i = 0; i < result.landmarks.length; i++) {
+        const lm = result.landmarks[i]
+        if (!lm || lm.length < 21) continue
+        const handed =
+          result.handedness[i]?.[0]?.categoryName ??
+          result.handedness[i]?.[0]?.displayName ??
+          `Hand${i}`
+        hands.push(landmarksToSample(lm, timestampMs, handed, true))
+      }
+
+      lastHandsRef.current = hands
+      return hands
     },
     [],
   )

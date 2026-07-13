@@ -1,6 +1,8 @@
+import type { SpellType } from './game/spells'
+
 export type AppPhase = 'start' | 'loading' | 'playing' | 'denied' | 'error'
 
-export type GesturePhase = 'idle' | 'charging' | 'cast' | 'cooldown'
+export type GesturePhase = 'idle' | 'charging' | 'cooldown'
 
 export interface Point2D {
   x: number
@@ -10,34 +12,43 @@ export interface Point2D {
 export interface HandSample {
   /** Normalized 0–1, already mirrored to match selfie video. */
   palm: Point2D
-  /** 0 closed → 1 fully open. */
+  /** 0 closed/fist → 1 fully open. */
   openness: number
-  /** Approximate hand span in normalized image space (grows when closer to camera). */
+  /** True when hand is a fist (spell switch). */
+  isFist: boolean
+  /** Approximate hand span in normalized image space. */
   handSize: number
   /** Depth relative to wrist (MediaPipe z). Smaller ≈ closer to camera. */
   depth: number
   landmarks: Point2D[]
+  /** 'Left' | 'Right' | 'Unknown' from MediaPipe (image space, pre-mirror). */
+  handedness: string
   timestamp: number
 }
 
 export interface GestureState {
   phase: GesturePhase
-  /** 0–1, driven by palm openness (for flame size / HUD). */
+  /** Accumulated charge 0–1. Does NOT auto-release. */
   charge: number
-  /** Continuous palm openness (smoothed), drives flame scale. */
+  /** Smoothed openness of the active cast hand. */
   openness: number
+  spell: SpellType
   cooldownMs: number
+  fistCooldownMs: number
+  wasFist: boolean
   lastCastAt: number
   debug: {
     openness: number
-    /** Forward speed toward camera (higher = thrusting at camera). */
     forward: number
     handSize: number
+    hands: number
+    fist: boolean
   }
 }
 
-export interface Fireball {
+export interface Projectile {
   id: number
+  spell: SpellType
   x: number
   y: number
   vx: number
@@ -45,10 +56,15 @@ export interface Fireball {
   radius: number
   life: number
   maxLife: number
-  /** Initial visual scale for SVG (from palm flame size at cast). */
+  /** Visual scale from charge at cast time. */
   birthScale: number
+  /** 0–1 power from charge. */
+  power: number
   spin: number
 }
+
+/** @deprecated alias kept for fewer renames in engine loop */
+export type Fireball = Projectile
 
 export interface Monster {
   id: number
@@ -77,7 +93,7 @@ export interface GameState {
   width: number
   height: number
   monsters: Monster[]
-  fireballs: Fireball[]
+  fireballs: Projectile[]
   particles: Particle[]
   score: number
   kills: number

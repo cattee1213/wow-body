@@ -12,6 +12,10 @@ export const LM = {
   INDEX_MCP: 5,
   RING_MCP: 13,
   PINKY_MCP: 17,
+  INDEX_PIP: 6,
+  MIDDLE_PIP: 10,
+  RING_PIP: 14,
+  PINKY_PIP: 18,
 } as const
 
 const FINGER_TIPS = [
@@ -20,6 +24,13 @@ const FINGER_TIPS = [
   LM.MIDDLE_TIP,
   LM.RING_TIP,
   LM.PINKY_TIP,
+] as const
+
+const FINGER_PIPS = [
+  LM.INDEX_PIP,
+  LM.MIDDLE_PIP,
+  LM.RING_PIP,
+  LM.PINKY_PIP,
 ] as const
 
 const HAND_CONNECTIONS: Array<[number, number]> = [
@@ -53,9 +64,7 @@ export function getHandConnections(): Array<[number, number]> {
 }
 
 function dist(a: Point2D, b: Point2D): number {
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  return Math.hypot(dx, dy)
+  return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -63,12 +72,12 @@ function clamp(v: number, min: number, max: number) {
 }
 
 /**
- * Convert MediaPipe landmarks (image space) to selfie-mirrored normalized points.
- * Video is drawn with scaleX(-1), so we mirror x to keep overlay aligned.
+ * Convert MediaPipe landmarks to selfie-mirrored normalized points.
  */
 export function landmarksToSample(
   raw: Array<{ x: number; y: number; z: number }>,
   timestamp: number,
+  handedness = 'Unknown',
   mirrorX = true,
 ): HandSample {
   const landmarks: Point2D[] = raw.map((p) => ({
@@ -86,23 +95,48 @@ export function landmarksToSample(
     y: (wrist.y + middleMcp.y + indexMcp.y + pinkyMcp.y) / 4,
   }
 
-  // Hand size: palm span — grows when hand moves toward the camera.
   const handSize = Math.max(
     dist(wrist, middleMcp),
     dist(indexMcp, pinkyMcp),
     0.015,
   )
 
-  // Openness: fingertip distance from palm, relative to hand size.
+  // Tip spread relative to palm — wider dynamic range for charge/flame.
   let tipSum = 0
   for (const tip of FINGER_TIPS) {
     tipSum += dist(landmarks[tip], palm)
   }
   const rawOpen = tipSum / (FINGER_TIPS.length * handSize)
-  // Soft curve so partial open already reads as charging.
-  const openness = clamp((rawOpen - 0.55) / 1.35, 0, 1)
+  // Map a broad physical range → 0..1 so small open changes still move the meter.
+  const openness = clamp((rawOpen - 0.45) / 1.55, 0, 1)
 
-  const depth = raw[LM.MIDDLE_MCP]?.z ?? 0
+  // Fist: fingertips curled near palm / PIP joints closer to wrist than tips would be open.
+  let curled = 0
+  for (let i = 0; i < FINGER_PIPS.length; i++) {
+    const tip = landmarks[FINGER_TIPS[i + 1]] // index..pinky tips
+    const pip = landmarks[FINGER_PIPS[i]]
+    if (dist(tip, wrist) < dist(pip, wrist) * 1.15) curled += 1
+  }
+  // Thumb rough curl: tip near index MCP
+  if (dist(landmarks[LM.THUMB_TIP], indexMcp) < handSize * 1.1) curled += 0.5
 
-  return { palm, openness, handSize, depth, landmarks, timestamp }
+  const isFist = openness < 0.22 && curled >= 3
+
+  // MediaPipe handedness is from camera view; after mirror, swap label for UI.
+  let handLabel = handedness
+  if (mirrorX) {
+    if (handedness === 'Left') handLabel = 'Right'
+    else if (handedness === 'Right') handLabel = 'Left'
+  }
+
+  return {
+    palm,
+    openness,
+    isFist,
+    handSize,
+    depth: raw[LM.MIDDLE_MCP]?.z ?? 0,
+    landmarks,
+    handedness: handLabel,
+    timestamp,
+  }
 }

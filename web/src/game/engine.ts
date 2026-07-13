@@ -1,10 +1,11 @@
-import type { Fireball, GameState, Monster, Particle, Point2D } from '../types'
-import { flameScaleFromOpenness } from './gesture'
+import { SPELLS, type SpellType } from './spells'
+import { palmEffectScale } from './gesture'
+import type { GameState, Monster, Particle, Point2D, Projectile } from '../types'
 
 const PLAYER_MAX_HP = 5
 const MONSTER_BASE_HP = 3
-const FIREBALL_SPEED = 820
-const FIREBALL_RADIUS = 22
+const BASE_SPEED = 820
+const BASE_RADIUS = 22
 
 export function createGameState(width: number, height: number): GameState {
   return {
@@ -19,8 +20,8 @@ export function createGameState(width: number, height: number): GameState {
     playerHp: PLAYER_MAX_HP,
     maxPlayerHp: PLAYER_MAX_HP,
     shake: 0,
-    message: '张开手掌聚火，向前推掌发射火球！',
-    messageTtl: 4,
+    message: '开掌蓄力，向前推掌释放 · 握拳切换法术',
+    messageTtl: 4.5,
     elapsed: 0,
     nextMonsterId: 1,
     nextFireballId: 1,
@@ -53,17 +54,18 @@ function spawnMonster(state: GameState) {
   state.monsters.push(monster)
 }
 
-export function castFireball(
+export function castSpell(
   state: GameState,
   from: Point2D,
-  openness = 0.7,
+  spell: SpellType,
+  charge: number,
 ) {
   if (state.gameOver) return
 
+  const power = Math.max(0.15, Math.min(1, charge))
   const originX = from.x * state.width
   const originY = from.y * state.height
 
-  // Aim at nearest living monster; otherwise shoot straight up the lane.
   let targetX = originX
   let targetY = 40
   let best = Infinity
@@ -80,25 +82,38 @@ export function castFireball(
   const dx = targetX - originX
   const dy = targetY - originY
   const len = Math.hypot(dx, dy) || 1
-  const speed = FIREBALL_SPEED
-  const birthScale = flameScaleFromOpenness(openness) * 0.85
+  const speed = BASE_SPEED * (0.9 + power * 0.25)
+  const birthScale = palmEffectScale(power, power) * 0.75
+  const def = SPELLS[spell]
 
-  const ball: Fireball = {
+  const ball: Projectile = {
     id: state.nextFireballId++,
+    spell,
     x: originX,
     y: originY,
     vx: (dx / len) * speed,
     vy: (dy / len) * speed,
-    radius: FIREBALL_RADIUS * (0.75 + openness * 0.4),
+    radius: BASE_RADIUS * (0.7 + power * 0.55),
     life: 2.2,
     maxLife: 2.2,
     birthScale,
+    power,
     spin: Math.random() * 360,
   }
   state.fireballs.push(ball)
-  burst(state, originX, originY, '#ffb347', 12)
-  state.message = '火球术！'
-  state.messageTtl = 0.7
+  burst(state, originX, originY, def.accent, 10 + Math.floor(power * 10))
+  state.message = def.castName
+  state.messageTtl = 0.75
+}
+
+/** @deprecated use castSpell */
+export function castFireball(
+  state: GameState,
+  from: Point2D,
+  charge = 0.7,
+  spell: SpellType = 'fire',
+) {
+  castSpell(state, from, spell, charge)
 }
 
 function burst(
@@ -124,6 +139,11 @@ function burst(
     }
     state.particles.push(p)
   }
+}
+
+function spellDamage(spell: SpellType, power: number): number {
+  const base = spell === 'lightning' ? 1.25 : spell === 'frost' ? 1 : 1
+  return power >= 0.75 ? Math.ceil(base + 0.5) : Math.ceil(base)
 }
 
 export function updateGame(state: GameState, dt: number) {
@@ -158,6 +178,7 @@ export function updateGame(state: GameState, dt: number) {
       m.x = Math.max(m.radius, Math.min(state.width - m.radius, m.x))
     }
     m.hitFlash = Math.max(0, m.hitFlash - dt)
+    // Frost slows via global? per-monster would need flag — keep simple creep
     m.y += 6 * dt
     if (m.y > state.height * 0.55) {
       state.playerHp -= 1
@@ -174,20 +195,30 @@ export function updateGame(state: GameState, dt: number) {
     f.x += f.vx * dt
     f.y += f.vy * dt
     f.life -= dt
-    f.spin += 220 * dt
+    f.spin += (f.spell === 'lightning' ? 360 : 200) * dt
+
+    // Frost slightly slower visual drift already in speed; lightning slightly zig
+    if (f.spell === 'lightning') {
+      f.x += Math.sin(state.elapsed * 40 + f.id) * 40 * dt
+    }
 
     for (const m of state.monsters) {
       const d = Math.hypot(f.x - m.x, f.y - m.y)
       if (d < f.radius + m.radius * 0.85) {
-        m.hp -= 1
+        const dmg = spellDamage(f.spell, f.power)
+        m.hp -= dmg
         m.hitFlash = 0.2
+        if (f.spell === 'frost') {
+          m.vx *= 0.55
+          m.y -= 8
+        }
         f.life = 0
-        burst(state, f.x, f.y, '#ff6a00', 18)
-        state.score += 10
+        burst(state, f.x, f.y, SPELLS[f.spell].color, 16 + Math.floor(f.power * 8))
+        state.score += 10 * dmg
         if (m.hp <= 0) {
           state.kills += 1
           state.score += 40
-          burst(state, m.x, m.y, '#ffd27a', 26)
+          burst(state, m.x, m.y, SPELLS[f.spell].accent, 26)
           state.shake = 0.25
         }
         break
