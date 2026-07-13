@@ -1,0 +1,20 @@
+# Godot 4
+.godot/
+*.translation
+export.cfg
+export_credentials.cfg
+*.apk
+*.aab
+*.ipa
+*.app
+*.dmg
+*.zip
+*.pck
+*.exe
+*.x86_64
+*.so
+*.dylib
+.mono/
+data_*/
+build/
+android/build/

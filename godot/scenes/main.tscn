@@ -1,0 +1,264 @@
+[gd_scene load_steps=4 format=3 uid="uid://wowbody_main"]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/game/game_world.gd" id="2_world"]
+[ext_resource type="Script" path="res://scripts/tracking/hand_tracker.gd" id="3_tracker"]
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+
+[node name="CameraBg" type="TextureRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 6
+visible = false
+
+[node name="Dimmer" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.05, 0.04, 0.08, 0.92)
+
+[node name="GameWorld" type="Node2D" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_world")
+
+[node name="MonsterLayer" type="Node2D" parent="GameWorld"]
+
+[node name="ProjectileLayer" type="Node2D" parent="GameWorld"]
+
+[node name="FxLayer" type="Node2D" parent="GameWorld"]
+
+[node name="HandSkeleton" type="Node2D" parent="."]
+unique_name_in_owner = true
+z_index = 5
+
+[node name="PalmLayer" type="Node2D" parent="."]
+unique_name_in_owner = true
+z_index = 6
+
+[node name="HandTracker" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("3_tracker")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
+layer = 10
+
+[node name="TopLeft" type="VBoxContainer" parent="HUD"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 360.0
+offset_bottom = 120.0
+
+[node name="LblScore" type="Label" parent="HUD/TopLeft"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(0.96, 0.9, 0.75, 1)
+theme_override_font_sizes/font_size = 18
+text = "分数 0    击杀 0    波次 1"
+
+[node name="LblHp" type="Label" parent="HUD/TopLeft"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(1, 0.45, 0.45, 1)
+theme_override_font_sizes/font_size = 16
+text = "生命 ●●●●●"
+
+[node name="SpellPanel" type="PanelContainer" parent="HUD"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 150.0
+grow_horizontal = 0
+
+[node name="Margin" type="MarginContainer" parent="HUD/SpellPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="HUD/SpellPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LblSpell" type="Label" parent="HUD/SpellPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.28, 1)
+theme_override_font_sizes/font_size = 22
+text = "🔥  火球"
+
+[node name="ChargeBar" type="ProgressBar" parent="HUD/SpellPanel/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="LblDebug" type="Label" parent="HUD/SpellPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.74, 0.82, 1)
+theme_override_font_sizes/font_size = 12
+text = "状态 待机"
+autowrap_mode = 2
+
+[node name="LblMessage" type="Label" parent="HUD"]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -24.0
+offset_right = 200.0
+offset_bottom = 24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+vertical_alignment = 1
+text = ""
+
+[node name="LblTip" type="Label" parent="HUD"]
+unique_name_in_owner = true
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -320.0
+offset_top = -48.0
+offset_right = 320.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 0.85)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+text = "开掌蓄力 · 推掌释放 · 握拳切法术"
+
+[node name="StartPanel" type="PanelContainer" parent="HUD"]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -230.0
+offset_top = -210.0
+offset_right = 230.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="HUD/StartPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 22
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 22
+
+[node name="VBox" type="VBoxContainer" parent="HUD/StartPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="HUD/StartPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
+theme_override_font_sizes/font_size = 28
+text = "WoW Body · Client"
+horizontal_alignment = 1
+
+[node name="Desc" type="Label" parent="HUD/StartPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Godot 4.7 原生客户端（macOS / Android）
+开掌蓄力 · 推掌释放 · 握拳切换 火球/寒冰/雷电
+支持双手 · 优化握拳识别 · 强化法术特效"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="How" type="Label" parent="HUD/StartPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.78, 0.72, 1)
+theme_override_font_sizes/font_size = 13
+text = "桌面：按住左键开掌蓄力，空格/甩动释放，右键或 F 握拳切法
+手机：触摸蓄力，快甩推掌释放，双指/F 切法
+摄像头：Android/Mac 授权后作为背景"
+autowrap_mode = 3
+
+[node name="LblStatus" type="Label" parent="HUD/StartPanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+text = ""
+
+[node name="BtnStart" type="Button" parent="HUD/StartPanel/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "开始游戏"
+
+[node name="GameOverPanel" type="PanelContainer" parent="HUD"]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -100.0
+offset_right = 180.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="HUD/GameOverPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="VBox" type="VBoxContainer" parent="HUD/GameOverPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="OverTitle" type="Label" parent="HUD/GameOverPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.7, 0.28, 1)
+theme_override_font_sizes/font_size = 32
+text = "战败"
+horizontal_alignment = 1
+
+[node name="BtnRestart" type="Button" parent="HUD/GameOverPanel/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "重新开始"
