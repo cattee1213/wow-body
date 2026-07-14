@@ -178,20 +178,20 @@ func tick(dt: float, screen_w: float) -> float:
 func apply_hit(damage: float, spell: StringName, power: float = 0.7) -> void:
 	hp -= damage
 	hit_flash = 0.22
-	match spell:
+	var element := GameBus.element_for(spell)
+	match element:
 		GameBus.SPELL_FIRE:
-			# Refresh burn: duration + DPS scale with power
-			burn_timer = maxf(burn_timer, 2.2 + power * 0.8)
-			burn_dps = maxf(burn_dps, 0.55 + power * 0.55)
+			var burn_mul := 1.35 if GameBus.is_ultimate(spell) else 1.0
+			burn_timer = maxf(burn_timer, (2.2 + power * 0.8) * burn_mul)
+			burn_dps = maxf(burn_dps, (0.55 + power * 0.55) * burn_mul)
 			_burn_tick = minf(_burn_tick, 0.05)
 		GameBus.SPELL_FROST:
-			slow_timer = maxf(slow_timer, 1.8 + power * 0.6)
-			# Soft cap horizontal speed while chilled
+			var slow_mul := 1.4 if GameBus.is_ultimate(spell) else 1.0
+			slow_timer = maxf(slow_timer, (1.8 + power * 0.6) * slow_mul)
 			var sign := 1.0 if velocity_x >= 0.0 else -1.0
-			velocity_x = sign * maxf(absf(velocity_x) * 0.75, _base_vx * 0.35)
+			velocity_x = sign * maxf(absf(velocity_x) * 0.7, _base_vx * 0.28)
 		GameBus.SPELL_LIGHTNING:
-			# Brief stun-like flash only; splash handled by world
-			hit_flash = 0.28
+			hit_flash = 0.32 if GameBus.is_ultimate(spell) else 0.28
 	_update_hp_bar()
 	_update_status_fx()
 

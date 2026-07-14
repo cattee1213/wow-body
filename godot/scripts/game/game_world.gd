@@ -25,6 +25,7 @@ var shake: float = 0.0
 
 var _monsters: Array = []
 var _projectiles: Array = []
+var _ultimates: Array = [] # Dictionary active fields
 var _sfx: SfxPlayer
 
 @onready var monster_layer: Node2D = $MonsterLayer
@@ -35,7 +36,7 @@ var _sfx: SfxPlayer
 func _ready() -> void:
 	_sfx = SfxPlayer.new()
 	add_child(_sfx)
-	message = "纯体感：移动手掌瞄准 · 自动发射 · 悬停切法术"
+	message = "指尖射击 · 双手仪式放终极"
 	message_ttl = 4.0
 	emit_signal("state_changed")
 
@@ -47,6 +48,7 @@ func restart() -> void:
 	for p in _projectiles:
 		if is_instance_valid(p):
 			p.queue_free()
+	_clear_ultimates()
 	_monsters.clear()
 	_projectiles.clear()
 	score = 0
@@ -57,9 +59,16 @@ func restart() -> void:
 	spawn_timer = 0.6
 	elapsed = 0.0
 	shake = 0.0
-	message = "重新开始！移动手掌瞄准，自动发射"
+	message = "指尖瞄准射击 · 双手仪式释放终极"
 	message_ttl = 2.5
 	emit_signal("state_changed")
+
+
+func _clear_ultimates() -> void:
+	for u in _ultimates:
+		if u is Dictionary and u.has("root") and is_instance_valid(u["root"]):
+			(u["root"] as Node).queue_free()
+	_ultimates.clear()
 
 
 func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
@@ -105,6 +114,206 @@ func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
 	emit_signal("state_changed")
 
 
+func cast_ultimate(ult: StringName, power: float = 1.0) -> bool:
+	if game_over or not GameBus.is_ultimate(ult):
+		return false
+	if not GameBus.can_cast_ultimate(ult):
+		return false
+	GameBus.start_ultimate_cooldown(ult)
+	var p := clampf(power, 0.5, 1.0)
+	match ult:
+		GameBus.ULT_CHAIN:
+			_cast_chain_lightning(p)
+		GameBus.ULT_BLIZZARD, GameBus.ULT_FIRESTORM:
+			_begin_field_ultimate(ult, p)
+		_:
+			return false
+	if _sfx:
+		_sfx.play_spell(ult)
+	message = GameBus.spell_cast_text(ult)
+	message_ttl = 1.4
+	shake = maxf(shake, 0.55)
+	emit_signal("state_changed")
+	return true
+
+
+func _begin_field_ultimate(ult: StringName, power: float) -> void:
+	var meta: Dictionary = GameBus.SPELL_META[ult]
+	var duration := float(meta.get("duration", 3.0))
+	var tick := float(meta.get("tick", 0.3))
+	var dmg := float(meta.get("damage", 0.8)) * (0.85 + power * 0.3)
+	var vp := get_viewport_rect().size
+	var root := _spawn_ultimate_overlay(ult, vp)
+	_ultimates.append({
+		"id": ult,
+		"t": 0.0,
+		"duration": duration,
+		"tick": tick,
+		"tick_left": 0.05,
+		"damage": dmg,
+		"power": power,
+		"root": root,
+	})
+	# Immediate first pulse
+	_pulse_field_ultimate(ult, dmg, power)
+
+
+func _cast_chain_lightning(power: float) -> void:
+	var vp := get_viewport_rect().size
+	var root := _spawn_ultimate_overlay(GameBus.ULT_CHAIN, vp, 0.55)
+	# Flash then free
+	if root:
+		var tw := create_tween()
+		tw.tween_interval(0.45)
+		tw.tween_property(root, "modulate:a", 0.0, 0.25)
+		tw.tween_callback(root.queue_free)
+
+	var targets: Array = []
+	for m in _monsters:
+		if is_instance_valid(m) and m.hp > 0.0:
+			targets.append(m)
+	if targets.is_empty():
+		return
+	# Start from highest monster, then nearest-neighbor chain
+	targets.sort_custom(func(a, b): return a.position.y < b.position.y)
+	var ordered: Array = []
+	var current: Monster = targets[0]
+	ordered.append(current)
+	var remaining: Array = targets.duplicate()
+	remaining.erase(current)
+	while remaining.size() > 0 and ordered.size() < 10:
+		var best_i := 0
+		var best_d := INF
+		for i in remaining.size():
+			var d: float = current.position.distance_to(remaining[i].position)
+			if d < best_d:
+				best_d = d
+				best_i = i
+		current = remaining[best_i]
+		remaining.remove_at(best_i)
+		ordered.append(current)
+
+	var base_dmg := float(GameBus.SPELL_META[GameBus.ULT_CHAIN]["damage"]) * (0.9 + power * 0.35)
+	for i in ordered.size():
+		var m: Monster = ordered[i]
+		if not is_instance_valid(m) or m.hp <= 0.0:
+			continue
+		var falloff := 1.0 - float(i) * 0.06
+		var dmg := maxf(0.6, base_dmg * falloff)
+		m.apply_hit(dmg, GameBus.ULT_CHAIN, power)
+		score += int(12 * dmg)
+		_spawn_impact(m.position, GameBus.ULT_CHAIN, power * 0.85)
+		if i > 0:
+			var prev: Monster = ordered[i - 1]
+			if is_instance_valid(prev):
+				_chain_bolt(prev.position, m.position)
+		if m.hp <= 0.0:
+			_kill_monster(m, GameBus.ULT_CHAIN)
+	shake = maxf(shake, 0.4)
+
+
+func _pulse_field_ultimate(ult: StringName, dmg: float, power: float) -> void:
+	var to_kill: Array = []
+	for m in _monsters:
+		if not is_instance_valid(m) or m.hp <= 0.0:
+			continue
+		m.apply_hit(dmg, ult, power)
+		score += int(8 * dmg)
+		if ult == GameBus.ULT_FIRESTORM:
+			_ember(m.position)
+		elif ult == GameBus.ULT_BLIZZARD:
+			_frost_burst(m.position)
+		if m.hp <= 0.0:
+			to_kill.append(m)
+	for m in to_kill:
+		_kill_monster(m, ult)
+
+
+func _spawn_ultimate_overlay(ult: StringName, vp: Vector2, life_hint: float = -1.0) -> Node2D:
+	SpellVfxLibrary.ensure_loaded()
+	var root := Node2D.new()
+	root.z_index = 8
+	root.position = vp * 0.5
+	fx_layer.add_child(root)
+
+	var cast_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_CAST)
+	var loop_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_LOOP)
+	var hold_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_HOLD)
+
+	# Fullscreen-ish cast burst
+	if cast_frames.size() > 0:
+		var cast_spr := Sprite2D.new()
+		cast_spr.centered = true
+		cast_spr.texture = cast_frames[0]
+		cast_spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		var longest := maxf(cast_frames[0].get_size().x, cast_frames[0].get_size().y)
+		var target := maxf(vp.x, vp.y) * 0.95
+		var s := target / maxf(longest, 1.0)
+		cast_spr.scale = Vector2(s, s) * 0.55
+		cast_spr.modulate = Color(1, 1, 1, 0.95)
+		root.add_child(cast_spr)
+		var tw := create_tween()
+		tw.tween_property(cast_spr, "scale", Vector2(s, s) * 1.05, 0.35).set_ease(Tween.EASE_OUT)
+		tw.parallel().tween_property(cast_spr, "modulate:a", 0.15 if life_hint < 0.0 else 0.0, 0.4)
+
+	# Loop / field layer
+	var field_frames: Array = loop_frames if loop_frames.size() > 0 else hold_frames
+	if field_frames.size() > 0 and life_hint < 0.0:
+		var field := Sprite2D.new()
+		field.name = "Field"
+		field.centered = true
+		field.texture = field_frames[0]
+		field.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		var fl := maxf(field_frames[0].get_size().x, field_frames[0].get_size().y)
+		var fs := (maxf(vp.x, vp.y) * 1.05) / maxf(fl, 1.0)
+		field.scale = Vector2(fs, fs)
+		field.modulate = Color(1, 1, 1, 0.55)
+		field.z_index = -1
+		root.add_child(field)
+
+	# Color wash
+	var wash := ColorRect.new()
+	wash.size = vp * 1.2
+	wash.position = -wash.size * 0.5
+	var wc := GameBus.spell_color(ult)
+	wc.a = 0.14
+	wash.color = wc
+	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(wash)
+	var tw2 := create_tween()
+	tw2.tween_property(wash, "color:a", 0.05, 0.5)
+
+	return root
+
+
+func _tick_ultimates(dt: float) -> void:
+	if _ultimates.is_empty():
+		return
+	var live: Array = []
+	for u in _ultimates:
+		if not (u is Dictionary):
+			continue
+		u["t"] = float(u["t"]) + dt
+		var root: Node2D = u.get("root", null)
+		if is_instance_valid(root):
+			var field := root.get_node_or_null("Field") as Sprite2D
+			if field:
+				field.modulate.a = 0.4 + 0.18 * sin(elapsed * 6.0)
+				field.rotation = sin(elapsed * 0.7) * 0.04
+		u["tick_left"] = float(u["tick_left"]) - dt
+		if float(u["tick_left"]) <= 0.0:
+			u["tick_left"] = float(u["tick"])
+			_pulse_field_ultimate(u["id"], float(u["damage"]), float(u["power"]))
+		if float(u["t"]) < float(u["duration"]):
+			live.append(u)
+		else:
+			if is_instance_valid(root):
+				var tw := create_tween()
+				tw.tween_property(root, "modulate:a", 0.0, 0.3)
+				tw.tween_callback(root.queue_free)
+	_ultimates = live
+
+
 func _physics_process(dt: float) -> void:
 	if game_over:
 		shake = maxf(0.0, shake - dt * 8.0)
@@ -114,6 +323,8 @@ func _physics_process(dt: float) -> void:
 	shake = maxf(0.0, shake - dt * 10.0)
 	if message_ttl > 0.0:
 		message_ttl -= dt
+
+	_tick_ultimates(dt)
 
 	var vp := get_viewport_rect().size
 	var target_count := mini(2 + int(wave / 2.0), 6)

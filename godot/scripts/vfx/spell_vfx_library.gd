@@ -1,24 +1,28 @@
 class_name SpellVfxLibrary
 extends RefCounted
-## Loads sliced VFX frames from assets/vfx/{fire,frost,lightning}/
-## States: hold(手持) · charge(蓄力) · projectile(发射) · impact(击中)
+## Loads sliced VFX frames from assets/vfx/{spell}/
+## Basic states: hold · charge · projectile · impact
+## Ultimate states: hold · charge · cast · loop (+ impact alias)
 
 const STATE_HOLD := &"hold"
 const STATE_CHARGE := &"charge"
 const STATE_PROJECTILE := &"projectile"
 const STATE_IMPACT := &"impact"
+const STATE_CAST := &"cast"
+const STATE_LOOP := &"loop"
 
-const STATES: Array[StringName] = [STATE_HOLD, STATE_CHARGE, STATE_PROJECTILE, STATE_IMPACT]
+const BASIC_STATES: Array[StringName] = [STATE_HOLD, STATE_CHARGE, STATE_PROJECTILE, STATE_IMPACT]
+const ULTIMATE_STATES: Array[StringName] = [STATE_HOLD, STATE_CHARGE, STATE_CAST, STATE_LOOP]
 
-## image2 pipeline: one clean frame per state (hold/charge/projectile/impact).
 const FRAME_COUNTS := {
 	STATE_HOLD: 1,
 	STATE_CHARGE: 1,
 	STATE_PROJECTILE: 1,
 	STATE_IMPACT: 1,
+	STATE_CAST: 1,
+	STATE_LOOP: 1,
 }
 
-## spell_folder -> state -> Array[Texture2D]
 static var _cache: Dictionary = {}
 static var _loaded: bool = false
 
@@ -35,6 +39,12 @@ static func _folder_for(spell: StringName) -> String:
 			return "frost"
 		&"lightning":
 			return "lightning"
+		&"blizzard":
+			return "blizzard"
+		&"firestorm":
+			return "firestorm"
+		&"chain":
+			return "chain"
 		_:
 			return "fire"
 
@@ -45,10 +55,24 @@ static func ensure_loaded() -> void:
 	_loaded = true
 	for spell_name in ["fire", "frost", "lightning"]:
 		_cache[spell_name] = {}
-		for state in STATES:
+		for state in BASIC_STATES:
 			_cache[spell_name][state] = _load_state_frames(
 				spell_name, str(state), int(FRAME_COUNTS[state])
 			)
+	for spell_name in ["blizzard", "firestorm", "chain"]:
+		_cache[spell_name] = {}
+		for state in ULTIMATE_STATES:
+			_cache[spell_name][state] = _load_state_frames(
+				spell_name, str(state), int(FRAME_COUNTS[state])
+			)
+		# Aliases so shared code paths work
+		var by: Dictionary = _cache[spell_name]
+		if by[STATE_CAST].is_empty() and not by[STATE_CHARGE].is_empty():
+			by[STATE_CAST] = by[STATE_CHARGE]
+		if by[STATE_LOOP].is_empty() and not by[STATE_HOLD].is_empty():
+			by[STATE_LOOP] = by[STATE_HOLD]
+		by[STATE_IMPACT] = by[STATE_LOOP] if not by[STATE_LOOP].is_empty() else by[STATE_CAST]
+		by[STATE_PROJECTILE] = by[STATE_CAST]
 
 
 static func get_frames(spell: StringName, state: StringName) -> Array:
@@ -88,15 +112,12 @@ static func _load_state_frames(folder: String, state: String, count: int) -> Arr
 
 
 static func _load_texture(res_path: String) -> Texture2D:
-	# Always load raw PNG so re-sliced files update without reimport.
 	var abs_path := ProjectSettings.globalize_path(res_path)
 	if not FileAccess.file_exists(abs_path):
 		return null
 	var img := Image.new()
 	if img.load(abs_path) != OK:
 		return null
-	# Skip nearly empty frames
 	if img.get_used_rect().size.x < 8:
 		return null
-	var tex := ImageTexture.create_from_image(img)
-	return tex
+	return ImageTexture.create_from_image(img)
