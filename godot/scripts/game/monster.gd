@@ -190,8 +190,6 @@ func apply_hit(damage: float, spell: StringName, power: float = 0.7) -> void:
 			slow_timer = maxf(slow_timer, (1.8 + power * 0.6) * slow_mul)
 			var sign := 1.0 if velocity_x >= 0.0 else -1.0
 			velocity_x = sign * maxf(absf(velocity_x) * 0.7, _base_vx * 0.28)
-		GameBus.SPELL_LIGHTNING:
-			hit_flash = 0.32 if GameBus.is_ultimate(spell) else 0.28
 	_update_hp_bar()
 	_update_status_fx()
 

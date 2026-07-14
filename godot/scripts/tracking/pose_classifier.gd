@@ -50,13 +50,13 @@ static func classify_raw(sample: HandTypes.HandSample) -> StringName:
 	if sample.is_fist or sample.fist_score >= 0.62:
 		return POSE_FIST
 
-	var ext := _finger_extension(sample)
+	var ext: Array = _finger_extension(sample)
 	# index, middle, ring, pinky
-	var idx: float = ext[0]
-	var mid: float = ext[1]
-	var rng: float = ext[2]
-	var pnk: float = ext[3]
-	var others := (mid + rng + pnk) / 3.0
+	var idx: float = float(ext[0])
+	var mid: float = float(ext[1])
+	var rng: float = float(ext[2])
+	var pnk: float = float(ext[3])
+	var others: float = (mid + rng + pnk) / 3.0
 
 	# Pointing: index out, other three curled
 	var point := clampf(idx * 1.15 - others * 0.95, 0.0, 1.0)
@@ -102,7 +102,7 @@ static func score_point(sample: HandTypes.HandSample) -> float:
 		return 0.0
 	if sample.is_fist:
 		return 0.0
-	var ext := _finger_extension(sample)
-	var idx: float = ext[0]
-	var others := (ext[1] + ext[2] + ext[3]) / 3.0
+	var ext: Array = _finger_extension(sample)
+	var idx: float = float(ext[0])
+	var others: float = (float(ext[1]) + float(ext[2]) + float(ext[3])) / 3.0
 	return clampf(idx * 1.2 - others * 1.0, 0.0, 1.0)

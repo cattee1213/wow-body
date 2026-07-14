@@ -5,18 +5,20 @@ extends Node2D
 signal state_changed
 signal player_hit
 signal defeated(score: int, kills: int)
+## Emitted when a wave is cleared and player should pick an upgrade.
+signal wave_cleared(completed_wave: int)
 
 const PLAYER_MAX_HP := 5
 const MONSTER_BASE_HP := 3
 const BASE_SPEED := 1550.0
-const LIGHTNING_SPLASH_RADIUS := 170.0
-const LIGHTNING_SPLASH_RATIO := 0.55
 
 var score: int = 0
 var kills: int = 0
 var wave: int = 1
 var player_hp: int = PLAYER_MAX_HP
 var game_over: bool = false
+## Combat paused for upgrade pick (no spawn / no cast).
+var awaiting_upgrade: bool = false
 var message: String = ""
 var message_ttl: float = 0.0
 var elapsed: float = 0.0
@@ -27,6 +29,7 @@ var _monsters: Array = []
 var _projectiles: Array = []
 var _ultimates: Array = [] # Dictionary active fields
 var _sfx: SfxPlayer
+var _wave_offer_pending: bool = false
 
 @onready var monster_layer: Node2D = $MonsterLayer
 @onready var projectile_layer: Node2D = $ProjectileLayer
@@ -36,7 +39,7 @@ var _sfx: SfxPlayer
 func _ready() -> void:
 	_sfx = SfxPlayer.new()
 	add_child(_sfx)
-	message = "指尖射击 · 双手仪式放终极"
+	message = "指尖即射 · 双手仪式放终极"
 	message_ttl = 4.0
 	emit_signal("state_changed")
 
@@ -56,10 +59,12 @@ func restart() -> void:
 	wave = 1
 	player_hp = PLAYER_MAX_HP
 	game_over = false
+	awaiting_upgrade = false
+	_wave_offer_pending = false
 	spawn_timer = 0.6
 	elapsed = 0.0
 	shake = 0.0
-	message = "指尖瞄准射击 · 双手仪式释放终极"
+	message = "指尖即射 · 双手仪式释放终极"
 	message_ttl = 2.5
 	emit_signal("state_changed")
 
@@ -72,32 +77,48 @@ func _clear_ultimates() -> void:
 
 
 func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
-	if game_over:
+	if game_over or awaiting_upgrade:
 		return
 	var vp := get_viewport_rect().size
 	var palm := Vector2(from_norm.x * vp.x, from_norm.y * vp.y)
+	var dir := _aim_dir_from_palm(palm)
+	var shots := GameBus.upgrades.roll_shot_count()
+	for i in shots:
+		var shot_dir := dir
+		if i > 0:
+			shot_dir = dir.rotated(randf_range(-0.12, 0.12))
+		_spawn_projectile(palm, spell, power, shot_dir)
 
-	# Prefer nearest monster in the upper field; else straight up from palm.
+	_spawn_cast_flash(palm, spell, power)
+	if _sfx:
+		_sfx.play_spell(spell)
+	if shots > 1:
+		message = "%s×%d" % [GameBus.spell_cast_text(spell), shots]
+	else:
+		message = GameBus.spell_cast_text(spell)
+	message_ttl = 0.55
+	emit_signal("state_changed")
+
+
+func _aim_dir_from_palm(palm: Vector2) -> Vector2:
 	var target := Vector2(palm.x, 48.0)
 	var best := INF
 	for m in _monsters:
 		if not is_instance_valid(m) or m.hp <= 0.0:
 			continue
-		# Slightly prefer monsters above the palm (typical arena layout)
 		var d: float = palm.distance_to(m.position)
 		if m.position.y > palm.y + 20.0:
 			d *= 1.35
 		if d < best:
 			best = d
-			# Aim at body center
 			target = m.position
-
 	var dir := (target - palm)
 	if dir.length_squared() < 0.001:
 		dir = Vector2(0, -1)
-	dir = dir.normalized()
+	return dir.normalized()
 
-	# Spawn slightly in front of palm so sprite doesn't cover the hand
+
+func _spawn_projectile(palm: Vector2, spell: StringName, power: float, dir: Vector2) -> void:
 	var origin := palm + dir * 36.0
 	var speed := BASE_SPEED * (1.0 + clampf(power, 0.0, 1.0) * 0.2)
 	var proj := SpellProjectile.new()
@@ -106,24 +127,15 @@ func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
 	proj.setup(spell, power, dir, speed)
 	_projectiles.append(proj)
 
-	_spawn_cast_flash(palm, spell, power)
-	if _sfx:
-		_sfx.play_spell(spell)
-	message = GameBus.spell_cast_text(spell)
-	message_ttl = 0.55
-	emit_signal("state_changed")
-
 
 func cast_ultimate(ult: StringName, power: float = 1.0) -> bool:
-	if game_over or not GameBus.is_ultimate(ult):
+	if game_over or awaiting_upgrade or not GameBus.is_ultimate(ult):
 		return false
 	if not GameBus.can_cast_ultimate(ult):
 		return false
 	GameBus.start_ultimate_cooldown(ult)
 	var p := clampf(power, 0.5, 1.0)
 	match ult:
-		GameBus.ULT_CHAIN:
-			_cast_chain_lightning(p)
 		GameBus.ULT_BLIZZARD, GameBus.ULT_FIRESTORM:
 			_begin_field_ultimate(ult, p)
 		_:
@@ -137,11 +149,20 @@ func cast_ultimate(ult: StringName, power: float = 1.0) -> bool:
 	return true
 
 
+func resume_after_upgrade() -> void:
+	awaiting_upgrade = false
+	_wave_offer_pending = false
+	spawn_timer = 0.45
+	message = "第 %d 波来袭！" % wave
+	message_ttl = 1.6
+	emit_signal("state_changed")
+
+
 func _begin_field_ultimate(ult: StringName, power: float) -> void:
 	var meta: Dictionary = GameBus.SPELL_META[ult]
 	var duration := float(meta.get("duration", 3.0))
 	var tick := float(meta.get("tick", 0.3))
-	var dmg := float(meta.get("damage", 0.8)) * (0.85 + power * 0.3)
+	var dmg: float = float(meta.get("damage", 0.8)) * (0.85 + power * 0.3) * float(GameBus.upgrades.damage_mult)
 	var vp := get_viewport_rect().size
 	var root := _spawn_ultimate_overlay(ult, vp)
 	_ultimates.append({
@@ -156,60 +177,6 @@ func _begin_field_ultimate(ult: StringName, power: float) -> void:
 	})
 	# Immediate first pulse
 	_pulse_field_ultimate(ult, dmg, power)
-
-
-func _cast_chain_lightning(power: float) -> void:
-	var vp := get_viewport_rect().size
-	var root := _spawn_ultimate_overlay(GameBus.ULT_CHAIN, vp, 0.55)
-	# Flash then free
-	if root:
-		var tw := create_tween()
-		tw.tween_interval(0.45)
-		tw.tween_property(root, "modulate:a", 0.0, 0.25)
-		tw.tween_callback(root.queue_free)
-
-	var targets: Array = []
-	for m in _monsters:
-		if is_instance_valid(m) and m.hp > 0.0:
-			targets.append(m)
-	if targets.is_empty():
-		return
-	# Start from highest monster, then nearest-neighbor chain
-	targets.sort_custom(func(a, b): return a.position.y < b.position.y)
-	var ordered: Array = []
-	var current: Monster = targets[0]
-	ordered.append(current)
-	var remaining: Array = targets.duplicate()
-	remaining.erase(current)
-	while remaining.size() > 0 and ordered.size() < 10:
-		var best_i := 0
-		var best_d := INF
-		for i in remaining.size():
-			var d: float = current.position.distance_to(remaining[i].position)
-			if d < best_d:
-				best_d = d
-				best_i = i
-		current = remaining[best_i]
-		remaining.remove_at(best_i)
-		ordered.append(current)
-
-	var base_dmg := float(GameBus.SPELL_META[GameBus.ULT_CHAIN]["damage"]) * (0.9 + power * 0.35)
-	for i in ordered.size():
-		var m: Monster = ordered[i]
-		if not is_instance_valid(m) or m.hp <= 0.0:
-			continue
-		var falloff := 1.0 - float(i) * 0.06
-		var dmg := maxf(0.6, base_dmg * falloff)
-		m.apply_hit(dmg, GameBus.ULT_CHAIN, power)
-		score += int(12 * dmg)
-		_spawn_impact(m.position, GameBus.ULT_CHAIN, power * 0.85)
-		if i > 0:
-			var prev: Monster = ordered[i - 1]
-			if is_instance_valid(prev):
-				_chain_bolt(prev.position, m.position)
-		if m.hp <= 0.0:
-			_kill_monster(m, GameBus.ULT_CHAIN)
-	shake = maxf(shake, 0.4)
 
 
 func _pulse_field_ultimate(ult: StringName, dmg: float, power: float) -> void:
@@ -324,6 +291,11 @@ func _physics_process(dt: float) -> void:
 	if message_ttl > 0.0:
 		message_ttl -= dt
 
+	if awaiting_upgrade:
+		# Freeze combat during pick: no spawn, no monster advance, no new ultimates tick lightly
+		position = Vector2.ZERO
+		return
+
 	_tick_ultimates(dt)
 
 	var vp := get_viewport_rect().size
@@ -335,11 +307,16 @@ func _physics_process(dt: float) -> void:
 
 	if kills > 0 and kills % 5 == 0:
 		var expected := 1 + int(kills / 5.0)
-		if expected > wave:
+		if expected > wave and not _wave_offer_pending:
+			var completed := wave
 			wave = expected
-			message = "第 %d 波来袭！" % wave
-			message_ttl = 2.0
+			_wave_offer_pending = true
+			awaiting_upgrade = true
+			message = "第 %d 波清除！选择强化" % completed
+			message_ttl = 2.5
 			emit_signal("state_changed")
+			emit_signal("wave_cleared", completed)
+			return
 
 	# monsters (+ burn DoT scoring)
 	var survivors: Array = []
@@ -416,39 +393,9 @@ func _apply_projectile_hit(p: SpellProjectile, primary: Monster) -> void:
 	elif p.spell == GameBus.SPELL_FROST:
 		message = "减速！"
 		message_ttl = 0.55
-	elif p.spell == GameBus.SPELL_LIGHTNING:
-		_lightning_splash(primary, dmg, p.power)
-		message = "闪电溅射！"
-		message_ttl = 0.6
 
 	if primary.hp <= 0.0:
 		_kill_monster(primary, p.spell)
-
-
-func _lightning_splash(primary: Monster, base_dmg: float, power: float) -> void:
-	var splash_dmg := maxf(0.5, base_dmg * LIGHTNING_SPLASH_RATIO * (0.85 + power * 0.3))
-	var radius := LIGHTNING_SPLASH_RADIUS * (0.9 + power * 0.25)
-	var targets: Array = []
-	for m in _monsters:
-		if not is_instance_valid(m) or m == primary or m.hp <= 0.0:
-			continue
-		if primary.position.distance_to(m.position) <= radius:
-			targets.append(m)
-	# Closest first, max 3 splash targets
-	targets.sort_custom(func(a, b): return primary.position.distance_to(a.position) < primary.position.distance_to(b.position))
-	var n := mini(targets.size(), 3)
-	for i in n:
-		var m: Monster = targets[i]
-		if not is_instance_valid(m) or m.hp <= 0.0:
-			continue
-		m.apply_hit(splash_dmg, GameBus.SPELL_LIGHTNING, power * 0.7)
-		score += int(8 * splash_dmg)
-		_chain_bolt(primary.position, m.position)
-		_spawn_impact(m.position, GameBus.SPELL_LIGHTNING, power * 0.6)
-		if m.hp <= 0.0:
-			_kill_monster(m, GameBus.SPELL_LIGHTNING)
-	if n > 0:
-		shake = maxf(shake, 0.18)
 
 
 func _kill_monster(m: Monster, spell: StringName = GameBus.SPELL_FIRE) -> void:
@@ -494,7 +441,7 @@ func _make_monster() -> Monster:
 
 
 func _spawn_cast_flash(pos: Vector2, spell: StringName, power: float) -> void:
-	## 出手爆发：蓄力漩涡放大 + 第二层 hold 闪光（双层叠加，常见做法）。
+	## 出手爆发：charge 漩涡放大 + hold 闪光（双层叠加）。
 	SpellVfxLibrary.ensure_loaded()
 	var charge_frames := SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_CHARGE)
 	var hold_frames := SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_HOLD)

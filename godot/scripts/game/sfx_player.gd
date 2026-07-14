@@ -6,10 +6,8 @@ extends Node
 const PATHS := {
 	GameBus.SPELL_FIRE: "res://assets/sfx/fire_hit.wav",
 	GameBus.SPELL_FROST: "res://assets/sfx/frost_hit.wav",
-	GameBus.SPELL_LIGHTNING: "res://assets/sfx/lightning_hit.wav",
 	GameBus.ULT_FIRESTORM: "res://assets/sfx/fire_hit.wav",
 	GameBus.ULT_BLIZZARD: "res://assets/sfx/frost_hit.wav",
-	GameBus.ULT_CHAIN: "res://assets/sfx/lightning_hit.wav",
 }
 
 var _streams: Dictionary = {} # StringName -> AudioStream

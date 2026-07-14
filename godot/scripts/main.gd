@@ -6,6 +6,7 @@ extends Control
 const DWELL_START_SEC := 3.0
 const DWELL_SELECT_SEC := 1.5
 const DWELL_RESTART_SEC := 2.0
+const DWELL_UPGRADE_SEC := 1.2
 
 @onready var camera_bg: TextureRect = %CameraBg
 @onready var dimmer: ColorRect = %Dimmer
@@ -30,7 +31,6 @@ const DWELL_RESTART_SEC := 2.0
 @onready var restart_dwell_bar: ProgressBar = %RestartDwellBar
 @onready var btn_spell_fire: Button = %BtnSpellFire
 @onready var btn_spell_frost: Button = %BtnSpellFrost
-@onready var btn_spell_lightning: Button = %BtnSpellLightning
 @onready var spell_bar: HBoxContainer = %SpellBar
 @onready var gesture_cursor: Control = %GestureCursor
 @onready var select_panel: PanelContainer = %SelectPanel
@@ -38,20 +38,29 @@ const DWELL_RESTART_SEC := 2.0
 @onready var select_hint: Label = %SelectHint
 @onready var btn_ult_blizzard: Button = %BtnUltBlizzard
 @onready var btn_ult_firestorm: Button = %BtnUltFirestorm
-@onready var btn_ult_chain: Button = %BtnUltChain
+@onready var upgrade_panel: PanelContainer = %UpgradePanel
+@onready var upgrade_title: Label = %UpgradeTitle
+@onready var upgrade_dwell_bar: ProgressBar = %UpgradeDwellBar
+@onready var btn_upgrade_0: Button = %BtnUpgrade0
+@onready var btn_upgrade_1: Button = %BtnUpgrade1
+@onready var btn_upgrade_2: Button = %BtnUpgrade2
+@onready var lbl_upgrades: Label = %LblUpgrades
 
 var _gesture := GestureController.new()
 var _palms: Array = [] # PalmVfx
 var _playing := false
 var _selecting := false
+var _picking_upgrade := false
 var _starting := false
 var _has_palm := false
 var _last_palm_px := Vector2.ZERO
 var _sensing_active := false
+var _upgrade_offer: Array[StringName] = []
 
 var _dwell_start: DwellTarget
 var _dwell_restart: DwellTarget
 var _dwell_selects: Array = [] # DwellTarget
+var _dwell_upgrades: Array = [] # DwellTarget
 var _start_btn_base_text := "体感：悬停 3 秒  ·  键鼠：点击开始"
 var _restart_btn_base_text := "体感：悬停 2 秒  ·  键鼠：点击重开"
 
@@ -59,7 +68,6 @@ var _restart_btn_base_text := "体感：悬停 2 秒  ·  键鼠：点击重开"
 func _ready() -> void:
 	randomize()
 	SpellVfxLibrary.reload()
-	_gesture.auto_fire = true
 	tracker.always_open = true
 	tracker.mouse_fallback = true
 	tracker.use_vision = true
@@ -79,19 +87,23 @@ func _ready() -> void:
 		btn_spell_fire.pressed.connect(_on_spell_fire_clicked)
 	if not btn_spell_frost.pressed.is_connected(_on_spell_frost_clicked):
 		btn_spell_frost.pressed.connect(_on_spell_frost_clicked)
-	if not btn_spell_lightning.pressed.is_connected(_on_spell_lightning_clicked):
-		btn_spell_lightning.pressed.connect(_on_spell_lightning_clicked)
 	if not btn_ult_blizzard.pressed.is_connected(_on_ult_blizzard_clicked):
 		btn_ult_blizzard.pressed.connect(_on_ult_blizzard_clicked)
 	if not btn_ult_firestorm.pressed.is_connected(_on_ult_firestorm_clicked):
 		btn_ult_firestorm.pressed.connect(_on_ult_firestorm_clicked)
-	if not btn_ult_chain.pressed.is_connected(_on_ult_chain_clicked):
-		btn_ult_chain.pressed.connect(_on_ult_chain_clicked)
+	if not btn_upgrade_0.pressed.is_connected(_on_upgrade_0_clicked):
+		btn_upgrade_0.pressed.connect(_on_upgrade_0_clicked)
+	if not btn_upgrade_1.pressed.is_connected(_on_upgrade_1_clicked):
+		btn_upgrade_1.pressed.connect(_on_upgrade_1_clicked)
+	if not btn_upgrade_2.pressed.is_connected(_on_upgrade_2_clicked):
+		btn_upgrade_2.pressed.connect(_on_upgrade_2_clicked)
 
 	game_world.state_changed.connect(_refresh_hud)
 	game_world.defeated.connect(_on_defeated)
+	game_world.wave_cleared.connect(_on_wave_cleared)
 	GameBus.spell_changed.connect(_on_spell_changed)
 	GameBus.ultimate_cds_changed.connect(_refresh_ultimate_buttons)
+	GameBus.upgrades.changed.connect(_refresh_upgrade_summary)
 
 	for i in 2:
 		var p := PalmVfx.new()
@@ -103,7 +115,11 @@ func _ready() -> void:
 	_dwell_selects = [
 		DwellTarget.new(btn_spell_fire, DWELL_SELECT_SEC, GameBus.SPELL_FIRE),
 		DwellTarget.new(btn_spell_frost, DWELL_SELECT_SEC, GameBus.SPELL_FROST),
-		DwellTarget.new(btn_spell_lightning, DWELL_SELECT_SEC, GameBus.SPELL_LIGHTNING),
+	]
+	_dwell_upgrades = [
+		DwellTarget.new(btn_upgrade_0, DWELL_UPGRADE_SEC, &"0"),
+		DwellTarget.new(btn_upgrade_1, DWELL_UPGRADE_SEC, &"1"),
+		DwellTarget.new(btn_upgrade_2, DWELL_UPGRADE_SEC, &"2"),
 	]
 
 	btn_start.text = _start_btn_base_text
@@ -111,11 +127,14 @@ func _ready() -> void:
 	start_dwell_bar.value = 0.0
 	restart_dwell_bar.value = 0.0
 	select_dwell_bar.value = 0.0
+	upgrade_dwell_bar.value = 0.0
 	game_over_panel.visible = false
 	select_panel.visible = false
+	upgrade_panel.visible = false
 	spell_bar.visible = false
 	lbl_message.text = ""
-	lbl_tip.text = "优先体感 · 无手时键鼠备用 · 体感激活自动隐藏鼠标"
+	lbl_tip.text = "优先体感 · 无手时键鼠备用 · 每波清场 3 选 1 强化"
+	_refresh_upgrade_summary()
 	if gesture_cursor:
 		gesture_cursor.pivot_offset = gesture_cursor.size * 0.5
 		if gesture_cursor.pivot_offset.length_squared() < 1.0:
@@ -138,6 +157,7 @@ func _on_sensing_active_changed(active: bool) -> void:
 func _apply_input_mode(sensing: bool) -> void:
 	_sensing_active = sensing
 	if sensing:
+		# Body mode owns input completely — ignore OS mouse on UI and hide cursor.
 		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 		_set_buttons_mouse_filter(Control.MOUSE_FILTER_IGNORE)
 	else:
@@ -148,8 +168,9 @@ func _apply_input_mode(sensing: bool) -> void:
 func _set_buttons_mouse_filter(mode: Control.MouseFilter) -> void:
 	var buttons: Array = [
 		btn_start, btn_restart,
-		btn_spell_fire, btn_spell_frost, btn_spell_lightning,
-		btn_ult_blizzard, btn_ult_firestorm, btn_ult_chain,
+		btn_spell_fire, btn_spell_frost,
+		btn_ult_blizzard, btn_ult_firestorm,
+		btn_upgrade_0, btn_upgrade_1, btn_upgrade_2,
 	]
 	for btn in buttons:
 		if btn:
@@ -200,13 +221,6 @@ func _on_spell_frost_clicked() -> void:
 		_confirm_school(GameBus.SPELL_FROST)
 
 
-func _on_spell_lightning_clicked() -> void:
-	if tracker.is_sensing_active():
-		return
-	if _selecting:
-		_confirm_school(GameBus.SPELL_LIGHTNING)
-
-
 func _on_ult_blizzard_clicked() -> void:
 	if tracker.is_sensing_active() or not _playing:
 		return
@@ -219,10 +233,95 @@ func _on_ult_firestorm_clicked() -> void:
 	_try_ultimate(GameBus.ULT_FIRESTORM)
 
 
-func _on_ult_chain_clicked() -> void:
-	if tracker.is_sensing_active() or not _playing:
+func _on_upgrade_0_clicked() -> void:
+	if tracker.is_sensing_active() or not _picking_upgrade:
 		return
-	_try_ultimate(GameBus.ULT_CHAIN)
+	_confirm_upgrade(0)
+
+
+func _on_upgrade_1_clicked() -> void:
+	if tracker.is_sensing_active() or not _picking_upgrade:
+		return
+	_confirm_upgrade(1)
+
+
+func _on_upgrade_2_clicked() -> void:
+	if tracker.is_sensing_active() or not _picking_upgrade:
+		return
+	_confirm_upgrade(2)
+
+
+func _on_wave_cleared(completed_wave: int) -> void:
+	if not _playing or game_world.game_over:
+		return
+	_open_upgrade_pick(completed_wave)
+
+
+func _open_upgrade_pick(completed_wave: int) -> void:
+	_picking_upgrade = true
+	_upgrade_offer = GameBus.upgrades.roll_offer(completed_wave, 3)
+	# Ensure 3 slots (pad with any if pool thin)
+	while _upgrade_offer.size() < 3:
+		var pad := GameBus.upgrades.roll_offer(completed_wave, 1)
+		if pad.is_empty():
+			break
+		if not _upgrade_offer.has(pad[0]):
+			_upgrade_offer.append(pad[0])
+		else:
+			break
+	upgrade_panel.visible = true
+	if upgrade_title:
+		upgrade_title.text = "第 %d 波清除 · 选择强化" % completed_wave
+	_paint_upgrade_buttons()
+	for d: DwellTarget in _dwell_upgrades:
+		d.reset()
+		d.enabled = true
+	upgrade_dwell_bar.value = 0.0
+	_apply_input_mode(tracker.is_sensing_active())
+	_update_tip()
+
+
+func _paint_upgrade_buttons() -> void:
+	var btns: Array = [btn_upgrade_0, btn_upgrade_1, btn_upgrade_2]
+	for i in btns.size():
+		var btn: Button = btns[i]
+		if i >= _upgrade_offer.size():
+			btn.visible = false
+			continue
+		btn.visible = true
+		var id: StringName = _upgrade_offer[i]
+		var e: Dictionary = UpgradeCatalog.get_entry(id)
+		var rarity: StringName = e.get("rarity", UpgradeCatalog.RARITY_COMMON)
+		var col: Color = UpgradeCatalog.rarity_color(rarity)
+		var preview := GameBus.upgrades.preview_line(id)
+		btn.text = "[%s] %s\n%s\n%s" % [
+			UpgradeCatalog.rarity_label(rarity),
+			str(e.get("name", id)),
+			str(e.get("desc", "")),
+			preview,
+		]
+		btn.modulate = col.lerp(Color.WHITE, 0.25)
+
+
+func _confirm_upgrade(index: int) -> void:
+	if not _picking_upgrade:
+		return
+	if index < 0 or index >= _upgrade_offer.size():
+		return
+	var id: StringName = _upgrade_offer[index]
+	GameBus.upgrades.apply(id)
+	var e: Dictionary = UpgradeCatalog.get_entry(id)
+	_picking_upgrade = false
+	upgrade_panel.visible = false
+	for d: DwellTarget in _dwell_upgrades:
+		d.enabled = false
+		d.reset()
+	game_world.message = "获得：%s" % str(e.get("name", id))
+	game_world.message_ttl = 1.6
+	game_world.resume_after_upgrade()
+	_apply_input_mode(tracker.is_sensing_active())
+	_update_tip()
+	_refresh_hud()
 
 
 func _open_select() -> void:
@@ -261,11 +360,10 @@ func _confirm_school(spell: StringName) -> void:
 	_gesture.spell = spell
 	_gesture.reset()
 	_gesture.spell = spell
-	_gesture.auto_fire = true
 	_playing = true
 	spell_bar.visible = true
 	game_world.restart()
-	game_world.message = "本局学派：%s · 指尖射击 · 双手放终极" % GameBus.spell_name(spell)
+	game_world.message = "本局学派：%s · 指尖即射 · 双手仪式放终极" % GameBus.spell_name(spell)
 	game_world.message_ttl = 2.8
 	_apply_input_mode(tracker.is_sensing_active())
 	_update_tip()
@@ -273,7 +371,7 @@ func _confirm_school(spell: StringName) -> void:
 
 
 func _try_ultimate(ult: StringName) -> void:
-	if not _playing or game_world.game_over:
+	if not _playing or game_world.game_over or _picking_upgrade:
 		return
 	if not GameBus.can_cast_ultimate(ult):
 		game_world.message = "%s 冷却中…" % GameBus.spell_name(ult)
@@ -286,11 +384,13 @@ func _try_ultimate(ult: StringName) -> void:
 
 func _update_tip() -> void:
 	if _selecting:
-		lbl_tip.text = "选择基础学派 · 悬停确认 · 键鼠 1/2/3"
+		lbl_tip.text = "选择基础学派 · 悬停确认 · 键鼠 1 火 / 2 冰"
+	elif _picking_upgrade:
+		lbl_tip.text = "波次强化三选一 · 悬停确认 · 键鼠 1/2/3"
 	elif tracker.is_sensing_active():
-		lbl_tip.text = "体感 · 指尖蓄力射击 · 双手高举=暴风雪 · 合掌=火风暴 · 双拳=闪电链"
+		lbl_tip.text = "体感 · 丢手不切键鼠 · 指尖即射 · 高举/合掌终极 · 每波选强化"
 	else:
-		lbl_tip.text = "键鼠 · 空格射击 · 4/5/6 终极 · R 重开"
+		lbl_tip.text = "键鼠备用 · 空格射击 · 4/5 终极 · 波末 1/2/3 · 伸手回体感"
 
 
 func _apply_camera_bg() -> void:
@@ -328,6 +428,18 @@ func _process(dt: float) -> void:
 	if not _playing:
 		_process_menu(dt, palm_px)
 		_process_fallback_keys_menu()
+		return
+
+	if _picking_upgrade:
+		_process_upgrade_pick(dt, palm_px)
+		_process_fallback_keys_upgrade()
+		_refresh_hud()
+		_update_tip()
+		if game_world.message_ttl > 0.0 and game_world.message != "":
+			lbl_message.text = game_world.message
+			lbl_message.visible = true
+		else:
+			lbl_message.visible = false
 		return
 
 	_process_fallback_keys_game(hands)
@@ -376,12 +488,67 @@ func _process_fallback_keys_select() -> void:
 		_confirm_school(GameBus.SPELL_FIRE)
 	elif Input.is_action_just_pressed("select_frost"):
 		_confirm_school(GameBus.SPELL_FROST)
+
+
+func _process_fallback_keys_upgrade() -> void:
+	if tracker.is_sensing_active():
+		return
+	# Reuse select_fire/frost/lightning as 1/2/3
+	if Input.is_action_just_pressed("select_fire"):
+		_confirm_upgrade(0)
+	elif Input.is_action_just_pressed("select_frost"):
+		_confirm_upgrade(1)
 	elif Input.is_action_just_pressed("select_lightning"):
-		_confirm_school(GameBus.SPELL_LIGHTNING)
+		_confirm_upgrade(2)
+
+
+func _process_upgrade_pick(dt: float, palm_px: Vector2) -> void:
+	if not _has_palm:
+		for d: DwellTarget in _dwell_upgrades:
+			d.update(dt, false)
+		upgrade_dwell_bar.value = 0.0
+		_paint_upgrade_hover(-1)
+		return
+	for i in _dwell_upgrades.size():
+		var d: DwellTarget = _dwell_upgrades[i]
+		if i >= _upgrade_offer.size():
+			d.update(dt, false)
+			continue
+		var hovering := d.is_hovering(palm_px)
+		if hovering:
+			for j in _dwell_upgrades.size():
+				if j != i:
+					(_dwell_upgrades[j] as DwellTarget).reset()
+			if d.update(dt, true):
+				_confirm_upgrade(i)
+				return
+			upgrade_dwell_bar.value = d.progress * 100.0
+			_paint_upgrade_hover(i)
+			return
+		else:
+			d.update(dt, false)
+	upgrade_dwell_bar.value = 0.0
+	_paint_upgrade_hover(-1)
+
+
+func _paint_upgrade_hover(active_i: int) -> void:
+	var btns: Array = [btn_upgrade_0, btn_upgrade_1, btn_upgrade_2]
+	for i in btns.size():
+		var btn: Button = btns[i]
+		if i >= _upgrade_offer.size():
+			continue
+		var id: StringName = _upgrade_offer[i]
+		var e: Dictionary = UpgradeCatalog.get_entry(id)
+		var rarity: StringName = e.get("rarity", UpgradeCatalog.RARITY_COMMON)
+		var col: Color = UpgradeCatalog.rarity_color(rarity).lerp(Color.WHITE, 0.25)
+		if i == active_i:
+			btn.modulate = col * 1.25
+		else:
+			btn.modulate = col
 
 
 func _process_fallback_keys_game(hands: Array) -> void:
-	if tracker.is_sensing_active():
+	if tracker.is_sensing_active() or _picking_upgrade:
 		return
 
 	if Input.is_action_just_pressed("restart"):
@@ -392,12 +559,11 @@ func _process_fallback_keys_game(hands: Array) -> void:
 		_try_ultimate(GameBus.ULT_BLIZZARD)
 	elif Input.is_action_just_pressed("ult_firestorm"):
 		_try_ultimate(GameBus.ULT_FIRESTORM)
-	elif Input.is_action_just_pressed("ult_chain"):
-		_try_ultimate(GameBus.ULT_CHAIN)
 
 	if Input.is_action_just_pressed("cast_debug"):
-		tracker.inject_forward_burst(0.12)
-		var fr := _gesture.force_cast_from_input(maxf(_gesture.charge, 0.65))
+		var fr := _gesture.force_cast_from_input(0.75)
+		if not fr.cast:
+			return
 		var palm := Vector2(0.5, 0.72)
 		if hands.size() > 0:
 			palm = hands[0].palm
@@ -489,7 +655,6 @@ func _paint_select_dwell(active: DwellTarget) -> void:
 	var map := {
 		GameBus.SPELL_FIRE: btn_spell_fire,
 		GameBus.SPELL_FROST: btn_spell_frost,
-		GameBus.SPELL_LIGHTNING: btn_spell_lightning,
 	}
 	for spell in map.keys():
 		var btn: Button = map[spell]
@@ -534,6 +699,9 @@ func _sync_gesture_cursor(palm_px: Vector2) -> void:
 		dwell_p = _dwell_start.progress
 	elif _selecting:
 		for d: DwellTarget in _dwell_selects:
+			dwell_p = maxf(dwell_p, d.progress)
+	elif _picking_upgrade:
+		for d: DwellTarget in _dwell_upgrades:
 			dwell_p = maxf(dwell_p, d.progress)
 	elif game_over_panel.visible and _dwell_restart:
 		dwell_p = _dwell_restart.progress
@@ -615,7 +783,9 @@ func _sync_palms_menu_or_game(hands: Array) -> void:
 					if _gesture.ritual_active != &"":
 						palm_vfx.set_spell(GameBus.element_for(_gesture.ritual_active))
 				else:
-					ch = maxf(_gesture.charge * (0.4 + h.openness * 0.6), PoseClassifier.score_point(h) * 0.9)
+					# No charge mode: soft idle glow while aiming / cooling down
+					var ready := 0.55 if _gesture.cooldown <= 0.0 else 0.2
+					ch = maxf(ready * 0.5, PoseClassifier.score_point(h) * 0.75)
 			else:
 				ch = maxf(0.45, h.openness * 0.9)
 				if start_panel.visible and _dwell_start:
@@ -635,17 +805,22 @@ func _refresh_hud() -> void:
 	lbl_spell.text = "%s  %s" % [GameBus.spell_badge(school), GameBus.spell_name(school)]
 	lbl_spell.add_theme_color_override("font_color", GameBus.spell_accent(school))
 
-	# Charge bar: basic charge, or ritual channel when active
-	var bar_v := _gesture.charge
+	# Progress bar: ritual channel, else basic fire cooldown readiness
+	var bar_v := 1.0
 	var bar_col := GameBus.spell_color(school)
 	if _gesture.ritual_channel > 0.02 and _gesture.ritual_active != &"":
 		bar_v = _gesture.ritual_channel
 		bar_col = GameBus.spell_color(_gesture.ritual_active)
-		lbl_spell.text = "%s  蓄力 %s" % [
+		lbl_spell.text = "%s  仪式 %s" % [
 			GameBus.spell_badge(_gesture.ritual_active),
 			GameBus.spell_name(_gesture.ritual_active),
 		]
 		lbl_spell.add_theme_color_override("font_color", GameBus.spell_accent(_gesture.ritual_active))
+	elif _gesture.cooldown > 0.0:
+		var shot_cd := GameBus.upgrades.fire_cooldown(GestureController.FIRE_COOLDOWN_SEC)
+		bar_v = 1.0 - clampf(_gesture.cooldown / maxf(shot_cd, 0.01), 0.0, 1.0)
+	else:
+		bar_v = 1.0
 	charge_bar.value = bar_v * 100.0
 	var fill := StyleBoxFlat.new()
 	fill.bg_color = bar_col
@@ -656,10 +831,10 @@ func _refresh_hud() -> void:
 	charge_bar.add_theme_stylebox_override("fill", fill)
 
 	if _playing:
-		lbl_debug.text = "[%s] %s  蓄力%.0f%%  手%d  姿%s  仪式%s %.0f%%  %s" % [
+		lbl_debug.text = "[%s] %s  CD%.2f  手%d  姿%s  仪式%s %.0f%%  %s" % [
 			tracker.control_source_label(),
 			_phase_name(_gesture.phase),
-			_gesture.charge * 100.0,
+			_gesture.cooldown,
 			_gesture.debug_hands,
 			_pose_name(_gesture.pose_label),
 			GameBus.spell_name(_gesture.ritual_active) if _gesture.ritual_active != &"" else "-",
@@ -667,6 +842,12 @@ func _refresh_hud() -> void:
 			tracker.vision_status(),
 		]
 	_refresh_ultimate_buttons()
+	_refresh_upgrade_summary()
+
+
+func _refresh_upgrade_summary() -> void:
+	if lbl_upgrades:
+		lbl_upgrades.text = "强化 %s" % GameBus.upgrades.summary_text()
 
 
 func _refresh_ultimate_buttons() -> void:
@@ -674,7 +855,6 @@ func _refresh_ultimate_buttons() -> void:
 		return
 	_paint_ult_btn(btn_ult_blizzard, GameBus.ULT_BLIZZARD)
 	_paint_ult_btn(btn_ult_firestorm, GameBus.ULT_FIRESTORM)
-	_paint_ult_btn(btn_ult_chain, GameBus.ULT_CHAIN)
 
 
 func _paint_ult_btn(btn: Button, ult: StringName) -> void:
@@ -707,12 +887,10 @@ func _pose_name(p: StringName) -> String:
 
 func _phase_name(p: StringName) -> String:
 	match p:
-		&"charging":
-			return "蓄力中"
 		&"cooldown":
-			return "发射！"
+			return "冷却"
 		_:
-			return "准备"
+			return "就绪"
 
 
 func _on_spell_changed(spell: StringName) -> void:
@@ -735,14 +913,21 @@ func _on_restart() -> void:
 	_dwell_restart.reset()
 	_playing = false
 	_selecting = false
+	_picking_upgrade = false
+	_upgrade_offer.clear()
 	spell_bar.visible = false
 	select_panel.visible = false
+	upgrade_panel.visible = false
 	start_panel.visible = true
 	btn_start.disabled = false
 	_dwell_start.enabled = true
 	_dwell_start.reset()
+	for d: DwellTarget in _dwell_upgrades:
+		d.enabled = false
+		d.reset()
 	_gesture.reset()
 	GameBus.reset_run_state(GameBus.SPELL_FIRE)
 	_apply_input_mode(tracker.is_sensing_active())
 	_update_tip()
 	_refresh_hud()
+

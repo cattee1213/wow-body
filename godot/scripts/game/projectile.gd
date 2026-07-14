@@ -18,7 +18,6 @@ var birth_scale: float = 1.0
 const FACE_OFFSET := {
 	&"fire": 0.0,
 	&"frost": 0.0,
-	&"lightning": -0.32,
 }
 
 var _sprite: Sprite2D
@@ -89,10 +88,6 @@ func tick(dt: float, elapsed: float) -> bool:
 	position += velocity * dt
 	life -= dt
 
-	if spell == GameBus.SPELL_LIGHTNING:
-		# small lateral wobble without changing facing much
-		position += velocity.orthogonal().normalized() * sin(elapsed * 30.0) * 12.0 * dt
-
 	_align_to_velocity()
 
 	# Trail ghosts sit slightly behind along -velocity
@@ -112,5 +107,5 @@ func tick(dt: float, elapsed: float) -> bool:
 
 
 func damage() -> float:
-	var base := 1.25 if spell == GameBus.SPELL_LIGHTNING else 1.0
-	return ceilf(base + (0.5 if power >= 0.75 else 0.0))
+	var base := 1.0 + (0.5 if power >= 0.75 else 0.0)
+	return ceilf(GameBus.upgrades.scale_damage(base))

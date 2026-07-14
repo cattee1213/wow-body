@@ -3,7 +3,6 @@ extends RefCounted
 ## Two-hand ultimate rituals.
 ## blizzard: both open palms raised high
 ## firestorm: both open palms close together (合掌)
-## chain: both fists
 
 const RITUAL_NONE := &""
 const CHANNEL_NEED := 0.95
@@ -40,7 +39,6 @@ func update(hands: Array, dt: float) -> RitualResult:
 			active = detected
 			channel = minf(1.0, channel + dt / CHANNEL_NEED)
 		else:
-			# Switched ritual mid-channel — restart gently
 			active = detected
 			channel = minf(0.35, channel * 0.4 + dt / CHANNEL_NEED)
 	elif active != RITUAL_NONE:
@@ -51,7 +49,6 @@ func update(hands: Array, dt: float) -> RitualResult:
 			channel = 0.0
 			_lost_t = 0.0
 		else:
-			# brief hold so jitter doesn't cancel
 			channel = maxf(0.0, channel - dt * 0.35)
 	else:
 		channel = maxf(0.0, channel - dt * 1.2)
@@ -73,7 +70,6 @@ func _detect(hands: Array) -> StringName:
 
 	var a: HandTypes.HandSample = hands[0]
 	var b: HandTypes.HandSample = hands[1]
-	# Prefer two highest-confidence / most open pair if more than 2
 	if hands.size() > 2:
 		var sorted: Array = hands.duplicate()
 		sorted.sort_custom(func(x, y): return x.openness > y.openness)
@@ -85,10 +81,6 @@ func _detect(hands: Array) -> StringName:
 	var open_a := (not fist_a) and a.openness >= 0.22
 	var open_b := (not fist_b) and b.openness >= 0.22
 
-	# Chain: dual fist
-	if fist_a and fist_b:
-		return GameBus.ULT_CHAIN
-
 	if not (open_a and open_b):
 		return RITUAL_NONE
 
@@ -96,7 +88,7 @@ func _detect(hands: Array) -> StringName:
 	var avg_y: float = (a.palm.y + b.palm.y) * 0.5
 	var both_high := a.palm.y < 0.42 and b.palm.y < 0.42 and avg_y < 0.38
 
-	# Firestorm: palms close (合掌聚能) — priority over high raise when close
+	# Firestorm: palms close (合掌聚能)
 	if palm_dist < 0.16:
 		return GameBus.ULT_FIRESTORM
 

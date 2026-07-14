@@ -37,14 +37,10 @@ static func _folder_for(spell: StringName) -> String:
 	match spell:
 		&"frost":
 			return "frost"
-		&"lightning":
-			return "lightning"
 		&"blizzard":
 			return "blizzard"
 		&"firestorm":
 			return "firestorm"
-		&"chain":
-			return "chain"
 		_:
 			return "fire"
 
@@ -53,13 +49,13 @@ static func ensure_loaded() -> void:
 	if _loaded:
 		return
 	_loaded = true
-	for spell_name in ["fire", "frost", "lightning"]:
+	for spell_name in ["fire", "frost"]:
 		_cache[spell_name] = {}
 		for state in BASIC_STATES:
 			_cache[spell_name][state] = _load_state_frames(
 				spell_name, str(state), int(FRAME_COUNTS[state])
 			)
-	for spell_name in ["blizzard", "firestorm", "chain"]:
+	for spell_name in ["blizzard", "firestorm"]:
 		_cache[spell_name] = {}
 		for state in ULTIMATE_STATES:
 			_cache[spell_name][state] = _load_state_frames(

@@ -1,18 +1,24 @@
 class_name HandTracker
 extends Node
-## Hand tracker: Vision (macOS) primary, keyboard/mouse synthetic hand as fallback.
+## Hand tracker: Vision (macOS) primary.
+## Keyboard/mouse fallback is ONLY activated by real mouse/key activity —
+## never auto-switched just because hands dropped out of frame.
 
 enum Mode { INPUT, CAMERA }
+enum ControlSource { FALLBACK, BODY }
 
 const VISION_HOST := "127.0.0.1"
 const VISION_PORT := 17452
-const VISION_STALE_SEC := 0.35
+## Fresh frame window for reading Vision hands.
+const VISION_STALE_SEC := 0.55
 const VISION_RECONNECT_SEC := 1.25
+## Mouse motion must exceed this (px) to count as intentional fallback activate.
+const MOUSE_ACTIVATE_PX := 3.5
 
 @export var mode: Mode = Mode.INPUT
-## When true, synthesize a hand from mouse/keys if Vision has no fresh hand.
+## When true, allow keyboard/mouse synthetic hand after explicit user input.
 @export var mouse_fallback: bool = true
-## Synthetic hand stays open while charging (kid-friendly).
+## Synthetic hand stays open (kid-friendly aim).
 @export var always_open: bool = true
 @export var use_vision: bool = true
 
@@ -37,9 +43,15 @@ var _vision_reconnect_cd: float = 0.0
 var _vision_pid: int = -1
 var _vision_status: String = "off"
 
+# Control ownership: BODY while hands seen; FALLBACK only after explicit kb/mouse.
+# Never auto FALLBACK solely because tracking failed.
+var _control: ControlSource = ControlSource.FALLBACK
+var _last_good_vision_hands: Array = []
+var _fallback_request: bool = false
+
 # Mouse fallback state
 var _touch_open: float = 0.75
-var _is_charging: bool = false
+var _is_aiming: bool = false
 var _fist_held: bool = false
 var _last_palm := Vector2(0.5, 0.72)
 var _prev_palm := Vector2(0.5, 0.72)
@@ -69,13 +81,13 @@ func is_vision_tracking() -> bool:
 	return has_vision() and _is_vision_fresh() and not _vision_hands.is_empty()
 
 
-## True when real body/hand sensing is driving input (not mouse fallback).
+## True when body/hand sensing owns control (not keyboard/mouse).
 func is_sensing_active() -> bool:
-	return is_vision_tracking()
+	return _control == ControlSource.BODY
 
 
 func is_using_fallback() -> bool:
-	return mouse_fallback and not is_sensing_active()
+	return mouse_fallback and _control == ControlSource.FALLBACK
 
 
 func vision_status() -> String:
@@ -84,10 +96,51 @@ func vision_status() -> String:
 
 func control_source_label() -> String:
 	if is_sensing_active():
-		return "体感"
+		if is_vision_tracking():
+			return "体感"
+		return "体感(等待手)"
 	if mouse_fallback:
 		return "键鼠备用"
 	return "无输入"
+
+
+func _input(event: InputEvent) -> void:
+	if not mouse_fallback:
+		return
+	# Live hands always win — ignore mouse jitter while tracking.
+	if is_vision_tracking():
+		_fallback_request = false
+		return
+	if event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if mm.relative.length() >= MOUSE_ACTIVATE_PX:
+			_fallback_request = true
+	elif event is InputEventMouseButton:
+		if (event as InputEventMouseButton).pressed:
+			_fallback_request = true
+	elif event is InputEventKey:
+		var ke := event as InputEventKey
+		if ke.pressed and not ke.echo:
+			_fallback_request = true
+	elif event is InputEventJoypadButton:
+		if (event as InputEventJoypadButton).pressed:
+			_fallback_request = true
+
+
+func _update_control_source(_dt: float) -> void:
+	var live := is_vision_tracking()
+	if live:
+		_control = ControlSource.BODY
+		_last_good_vision_hands = _vision_hands.duplicate()
+		_fallback_request = false
+		return
+	# No live hands: never auto-drop body mode. Only explicit kb/mouse activates fallback.
+	if _fallback_request and mouse_fallback:
+		_control = ControlSource.FALLBACK
+		_fallback_request = false
+		# Keep last vision pose around for a potential return to body; clear only if never had hands
+		# (optional clear when entering fallback so synthetic hand is clean)
+		# Keep last_good for if vision returns.
 
 
 func start_camera() -> bool:
@@ -145,11 +198,18 @@ func _process(delta: float) -> void:
 	if use_vision and OS.get_name() == "macOS":
 		_poll_vision(delta)
 
+	_update_control_source(delta)
+
 	var sensing := is_sensing_active()
 	if sensing != _was_sensing:
 		_was_sensing = sensing
 		sensing_active_changed.emit(sensing)
+		if sensing:
+			Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+		elif mouse_fallback:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+	# Only drive synthetic hand while fallback is explicitly active
 	if not sensing and mouse_fallback:
 		_update_fallback_input(delta)
 
@@ -305,22 +365,30 @@ func _is_vision_fresh() -> bool:
 
 
 func _build_hands() -> Array:
-	# Priority: live Vision hands
-	if use_vision and _is_vision_fresh() and not _vision_hands.is_empty():
-		return _vision_hands.duplicate()
-	# Fallback: mouse / keyboard synthetic hand
+	# Body mode: live Vision hands, else freeze last good frame (do NOT invent mouse hands).
+	if _control == ControlSource.BODY:
+		if use_vision and _is_vision_fresh() and not _vision_hands.is_empty():
+			return _vision_hands.duplicate()
+		if not _last_good_vision_hands.is_empty():
+			return _last_good_vision_hands.duplicate()
+		return []
+	# Explicit keyboard/mouse fallback only
 	if mouse_fallback:
 		return _build_fallback_hands()
 	return []
 
 
 func _update_fallback_input(delta: float) -> void:
+	# Guard: never process mouse while body owns control
+	if _control == ControlSource.BODY:
+		return
+
 	_fist_held = (
 		Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT)
 		or Input.is_physical_key_pressed(KEY_F)
 		or Input.is_action_pressed("fist_toggle")
 	)
-	_is_charging = (
+	_is_aiming = (
 		Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
 		or Input.is_action_pressed("charge_hold")
 		or always_open
@@ -338,7 +406,7 @@ func _update_fallback_input(delta: float) -> void:
 		_depth -= 0.04
 	else:
 		var vel := (_last_palm - _prev_palm) / maxf(delta, 0.001)
-		if _is_charging and vel.length() > 1.8:
+		if _is_aiming and vel.length() > 1.8:
 			_hand_size = minf(0.22, _hand_size + vel.length() * delta * 0.05)
 			_depth -= vel.length() * delta * 0.02
 		else:
@@ -347,7 +415,7 @@ func _update_fallback_input(delta: float) -> void:
 
 	if _fist_held:
 		_touch_open = lerpf(_touch_open, 0.04, 1.0 - exp(-16.0 * delta))
-	elif _is_charging or always_open:
+	elif _is_aiming or always_open:
 		_touch_open = lerpf(_touch_open, 0.95, 1.0 - exp(-9.0 * delta))
 	else:
 		_touch_open = lerpf(_touch_open, 0.32, 1.0 - exp(-4.0 * delta))

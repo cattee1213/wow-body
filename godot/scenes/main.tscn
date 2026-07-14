@@ -92,8 +92,8 @@ color = Color(1, 0.95, 0.75, 0.55)
 [node name="TopLeft" type="VBoxContainer" parent="HUD"]
 offset_left = 16.0
 offset_top = 16.0
-offset_right = 360.0
-offset_bottom = 120.0
+offset_right = 420.0
+offset_bottom = 150.0
 
 [node name="LblScore" type="Label" parent="HUD/TopLeft"]
 unique_name_in_owner = true
@@ -185,7 +185,7 @@ grow_vertical = 0
 theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 0.85)
 theme_override_font_sizes/font_size = 13
 horizontal_alignment = 1
-text = "指尖射击 · 双手仪式放终极"
+text = "指尖即射 · 双手仪式放终极"
 
 [node name="SpellBar" type="HBoxContainer" parent="HUD"]
 unique_name_in_owner = true
@@ -195,35 +195,28 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -280.0
+offset_left = -200.0
 offset_top = -128.0
-offset_right = 280.0
+offset_right = 200.0
 offset_bottom = -58.0
 grow_horizontal = 2
 grow_vertical = 0
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 alignment = 1
 
 [node name="BtnUltBlizzard" type="Button" parent="HUD/SpellBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 56)
+custom_minimum_size = Vector2(170, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "🌨 暴风雪"
 
 [node name="BtnUltFirestorm" type="Button" parent="HUD/SpellBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 56)
+custom_minimum_size = Vector2(170, 56)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "🌪 火风暴"
-
-[node name="BtnUltChain" type="Button" parent="HUD/SpellBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 56)
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "⛓ 闪电链"
 
 [node name="SelectPanel" type="PanelContainer" parent="HUD"]
 unique_name_in_owner = true
@@ -261,37 +254,30 @@ horizontal_alignment = 1
 [node name="SelectDesc" type="Label" parent="HUD/SelectPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
-text = "本局仅使用该系基础弹（指尖射击）
-三个终极法术所有人都能用"
+text = "本局仅使用该系基础弹（指尖即射）
+终极：暴风雪 / 火风暴 所有人都能用"
 horizontal_alignment = 1
 autowrap_mode = 3
 
 [node name="SelectBar" type="HBoxContainer" parent="HUD/SelectPanel/Margin/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 16
 alignment = 1
 
 [node name="BtnSpellFire" type="Button" parent="HUD/SelectPanel/Margin/VBox/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 72)
+custom_minimum_size = Vector2(180, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "🔥 火球"
 
 [node name="BtnSpellFrost" type="Button" parent="HUD/SelectPanel/Margin/VBox/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 72)
+custom_minimum_size = Vector2(180, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "❄ 寒冰"
-
-[node name="BtnSpellLightning" type="Button" parent="HUD/SelectPanel/Margin/VBox/SelectBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 72)
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "⚡ 雷击"
 
 [node name="SelectDwellBar" type="ProgressBar" parent="HUD/SelectPanel/Margin/VBox"]
 unique_name_in_owner = true
@@ -305,9 +291,99 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.78, 0.85, 1)
 theme_override_font_sizes/font_size = 12
-text = "体感：悬停 1.5 秒确认  ·  键鼠：点击或按 1/2/3"
+text = "体感：悬停 1.5 秒确认  ·  键鼠：点击或按 1/2"
 horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="UpgradePanel" type="PanelContainer" parent="HUD"]
+unique_name_in_owner = true
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -210.0
+offset_right = 420.0
+offset_bottom = 210.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="HUD/UpgradePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="VBox" type="VBoxContainer" parent="HUD/UpgradePanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="UpgradeTitle" type="Label" parent="HUD/UpgradePanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
+theme_override_font_sizes/font_size = 26
+text = "波次强化 · 三选一"
+horizontal_alignment = 1
+
+[node name="UpgradeDesc" type="Label" parent="HUD/UpgradePanel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "选择一项强化带入下一波"
+horizontal_alignment = 1
+
+[node name="UpgradeBar" type="HBoxContainer" parent="HUD/UpgradePanel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="BtnUpgrade0" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 140)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "强化 A"
+autowrap_mode = 3
+
+[node name="BtnUpgrade1" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 140)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "强化 B"
+autowrap_mode = 3
+
+[node name="BtnUpgrade2" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 140)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "强化 C"
+autowrap_mode = 3
+
+[node name="UpgradeDwellBar" type="ProgressBar" parent="HUD/UpgradePanel/Margin/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="UpgradeHint" type="Label" parent="HUD/UpgradePanel/Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.75, 0.78, 0.85, 1)
+theme_override_font_sizes/font_size = 12
+text = "体感：悬停 1.2 秒  ·  键鼠：点击或 1/2/3"
+horizontal_alignment = 1
+
+[node name="LblUpgrades" type="Label" parent="HUD/TopLeft"]
+unique_name_in_owner = true
+theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 0.95)
+theme_override_font_sizes/font_size = 12
+text = "强化 无"
 
 [node name="StartPanel" type="PanelContainer" parent="HUD"]
 unique_name_in_owner = true
@@ -355,10 +431,10 @@ theme_override_colors/font_color = Color(0.8, 0.78, 0.72, 1)
 theme_override_font_sizes/font_size = 13
 text = "① 允许摄像头（Godot + Hand Server）
 ② 把手伸到画面，骨架跟随
-③ 悬停「开始」3 秒 → 选择学派
-④ 指尖瞄准：蓄力自动射击
-⑤ 双手仪式：暴风雪 / 火风暴 / 闪电链
-⑥ 无手时可用键鼠备用"
+③ 悬停「开始」3 秒 → 选择火/冰学派
+④ 指尖瞄准：即射（无蓄力）
+⑤ 双手仪式：暴风雪 / 火风暴
+⑥ 体感激活时忽略鼠标；无手时键鼠备用"
 autowrap_mode = 3
 [node name="LblStatus" type="Label" parent="HUD/StartPanel/Margin/VBox"]
 unique_name_in_owner = true
