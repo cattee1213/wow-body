@@ -32,8 +32,9 @@ func setup(p_spell: StringName, p_power: float, dir: Vector2, speed: float) -> v
 	if d.length_squared() < 0.0001:
 		d = Vector2.UP
 	velocity = d * speed
-	radius = 24.0 + power * 12.0
-	birth_scale = 0.9 + power * 0.4
+	# Medium basic projectile (readable, not fullscreen)
+	radius = 18.0 + power * 8.0
+	birth_scale = 0.72 + power * 0.28
 	life = 1.6
 	max_life = 1.6
 	_face = float(FACE_OFFSET.get(spell, 0.0))
@@ -46,25 +47,23 @@ func _build_visuals() -> void:
 	var frames: Array = SpellVfxLibrary.get_frames(spell, SpellVfxLibrary.STATE_PROJECTILE)
 	var tex: Texture2D = null
 	if frames.size() > 0:
-		# Prefer a mid frame that is usually cleanest
 		var idx := mini(1, frames.size() - 1)
 		tex = frames[idx]
 	_sprite = Sprite2D.new()
 	_sprite.centered = true
 	_sprite.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_sprite.texture = tex
-	_apply_size(_sprite, 96.0 + power * 40.0)
+	_apply_size(_sprite, 72.0 + power * 24.0)
 	add_child(_sprite)
 
-	# Motion trail ghosts (common game trick)
-	for i in 3:
+	for i in 2:
 		var g := Sprite2D.new()
 		g.centered = true
 		g.texture = tex
 		g.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		g.modulate = Color(1, 1, 1, 0.35 - i * 0.1)
+		g.modulate = Color(1, 1, 1, 0.30 - i * 0.1)
 		g.z_index = -1 - i
-		_apply_size(g, (96.0 + power * 40.0) * (0.9 - i * 0.08))
+		_apply_size(g, (72.0 + power * 24.0) * (0.88 - i * 0.1))
 		add_child(g)
 		_trail.append(g)
 
@@ -95,13 +94,13 @@ func tick(dt: float, elapsed: float) -> bool:
 	for i in _trail.size():
 		var g: Sprite2D = _trail[i]
 		if g:
-			g.position = back * (14.0 + i * 16.0)
-			g.rotation = 0.0 # inherits parent rotation
-			g.modulate.a = clampf(0.32 - i * 0.08, 0.05, 0.4)
+			g.position = back * (12.0 + i * 14.0)
+			g.rotation = 0.0
+			g.modulate.a = clampf(0.28 - i * 0.08, 0.05, 0.38)
 
 	var life_t := clampf(life / max_life, 0.0, 1.0)
 	if _sprite:
-		_apply_size(_sprite, (96.0 + power * 40.0) * (0.9 + life_t * 0.15))
+		_apply_size(_sprite, (72.0 + power * 24.0) * (0.9 + life_t * 0.12))
 
 	return life > 0.0
 

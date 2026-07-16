@@ -61,39 +61,36 @@ func sync(world_pos: Vector2, p_charge: float, p_open: float) -> void:
 
 	visible = true
 
-	# --- Hold layer: always on while hand present ---
-	var hold_mul := 0.7 + openness * 0.55 + charge * 0.35
-	_set_sprite_size(_hold, 100.0 * hold_mul)
+	# Palm VFX — medium size, follows aim point (index tip when pointing)
+	var hold_mul := 0.65 + openness * 0.4 + charge * 0.3
+	_set_sprite_size(_hold, 70.0 * hold_mul)
 	if _hold:
 		_hold.visible = true
 		_hold.rotation = 0.0
-		_hold.modulate = Color(1, 1, 1, clampf(0.55 + openness * 0.45, 0.4, 1.0))
+		_hold.modulate = Color(1, 1, 1, clampf(0.5 + openness * 0.4, 0.4, 0.95))
 
-	# --- Charge layer: fades in from first bit of charge (clear feedback) ---
 	var charge_alpha := 0.0
 	if charge > 0.05:
-		# Smooth ramp 5%→100%
 		charge_alpha = clampf((charge - 0.05) / 0.75, 0.0, 1.0)
 	if _charge:
 		_charge.visible = charge_alpha > 0.02
-		_set_sprite_size(_charge, (90.0 + charge * 70.0))
-		_charge.modulate = Color(1, 1, 1, charge_alpha * 0.95)
-		_charge.rotation += get_process_delta_time() * (1.0 + charge * 3.5)
+		_set_sprite_size(_charge, (58.0 + charge * 40.0))
+		_charge.modulate = Color(1, 1, 1, charge_alpha * 0.85)
+		_charge.rotation += get_process_delta_time() * (1.0 + charge * 2.8)
 
-	# --- Pulse / ring: beats faster as charge fills ---
-	var beat := 1.0 + sin(_time * (6.0 + charge * 10.0)) * (0.08 + charge * 0.12)
+	var beat := 1.0 + sin(_time * (6.0 + charge * 8.0)) * (0.06 + charge * 0.1)
 	if _pulse and _pulse.texture:
-		_set_raw_size(_pulse, (130.0 + charge * 90.0) * beat)
+		_set_raw_size(_pulse, (78.0 + charge * 48.0) * beat)
 		_pulse.modulate = Color(
 			GameBus.spell_accent(spell).r,
 			GameBus.spell_accent(spell).g,
 			GameBus.spell_accent(spell).b,
-			charge_alpha * 0.35
+			charge_alpha * 0.32
 		)
 		_pulse.rotation = -_time * 0.8
 	if _ring and _ring.texture:
-		_set_raw_size(_ring, (70.0 + charge * 100.0) * beat)
-		_ring.modulate = Color(1, 1, 1, charge_alpha * (0.25 + charge * 0.45))
+		_set_raw_size(_ring, (48.0 + charge * 52.0) * beat)
+		_ring.modulate = Color(1, 1, 1, charge_alpha * (0.22 + charge * 0.4))
 		_ring.rotation = _time * 2.2
 
 	# Whole-node punch when nearly full

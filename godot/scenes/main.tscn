@@ -68,53 +68,53 @@ z_index = 100
 layout_mode = 0
 mouse_filter = 2
 anchors_preset = 0
-offset_right = 72.0
-offset_bottom = 72.0
+offset_right = 96.0
+offset_bottom = 96.0
 
 [node name="RingOuter" type="ColorRect" parent="HUD/GestureCursor"]
 layout_mode = 0
 offset_left = 0.0
 offset_top = 0.0
-offset_right = 72.0
-offset_bottom = 72.0
+offset_right = 96.0
+offset_bottom = 96.0
 mouse_filter = 2
 color = Color(1, 0.82, 0.35, 0.35)
 
 [node name="RingInner" type="ColorRect" parent="HUD/GestureCursor"]
 layout_mode = 0
-offset_left = 14.0
-offset_top = 14.0
-offset_right = 58.0
-offset_bottom = 58.0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 76.0
+offset_bottom = 76.0
 mouse_filter = 2
 color = Color(1, 0.95, 0.75, 0.55)
 
 [node name="TopLeft" type="VBoxContainer" parent="HUD"]
 offset_left = 16.0
 offset_top = 16.0
-offset_right = 420.0
-offset_bottom = 150.0
+offset_right = 520.0
+offset_bottom = 180.0
 
 [node name="LblScore" type="Label" parent="HUD/TopLeft"]
 unique_name_in_owner = true
 theme_override_colors/font_color = Color(0.96, 0.9, 0.75, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 28
 text = "分数 0    击杀 0    波次 1"
 
 [node name="LblHp" type="Label" parent="HUD/TopLeft"]
 unique_name_in_owner = true
 theme_override_colors/font_color = Color(1, 0.45, 0.45, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 26
 text = "生命 ●●●●●"
 
 [node name="SpellPanel" type="PanelContainer" parent="HUD"]
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -280.0
+offset_left = -360.0
 offset_top = 12.0
 offset_right = -12.0
-offset_bottom = 150.0
+offset_bottom = 190.0
 grow_horizontal = 0
 
 [node name="Margin" type="MarginContainer" parent="HUD/SpellPanel"]
@@ -132,12 +132,12 @@ theme_override_constants/separation = 8
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.7, 0.28, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 34
 text = "🔥  火球"
 
 [node name="ChargeBar" type="ProgressBar" parent="HUD/SpellPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 22)
+custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
@@ -146,7 +146,7 @@ show_percentage = false
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.74, 0.82, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "状态 待机"
 autowrap_mode = 2
 
@@ -157,14 +157,14 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -24.0
-offset_right = 200.0
-offset_bottom = 24.0
+offset_left = -420.0
+offset_top = -48.0
+offset_right = 420.0
+offset_bottom = 48.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 42
 horizontal_alignment = 1
 vertical_alignment = 1
 text = ""
@@ -176,14 +176,14 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -380.0
-offset_top = -48.0
-offset_right = 380.0
-offset_bottom = -16.0
+offset_left = -520.0
+offset_top = -64.0
+offset_right = 520.0
+offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_colors/font_color = Color(0.85, 0.82, 0.75, 0.85)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 text = "指尖即射 · 双手仪式放终极"
 
@@ -195,10 +195,10 @@ anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -200.0
-offset_top = -128.0
-offset_right = 200.0
-offset_bottom = -58.0
+offset_left = -280.0
+offset_top = -150.0
+offset_right = 280.0
+offset_bottom = -72.0
 grow_horizontal = 2
 grow_vertical = 0
 theme_override_constants/separation = 16
@@ -206,16 +206,16 @@ alignment = 1
 
 [node name="BtnUltBlizzard" type="Button" parent="HUD/SpellBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(170, 56)
+custom_minimum_size = Vector2(220, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 26
 text = "🌨 暴风雪"
 
 [node name="BtnUltFirestorm" type="Button" parent="HUD/SpellBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(170, 56)
+custom_minimum_size = Vector2(220, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 16
+theme_override_font_sizes/font_size = 26
 text = "🌪 火风暴"
 
 [node name="SelectPanel" type="PanelContainer" parent="HUD"]
@@ -226,10 +226,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -300.0
-offset_top = -220.0
-offset_right = 300.0
-offset_bottom = 220.0
+offset_left = -380.0
+offset_top = -260.0
+offset_right = 380.0
+offset_bottom = 260.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -247,13 +247,13 @@ theme_override_constants/separation = 12
 [node name="SelectTitle" type="Label" parent="HUD/SelectPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 38
 text = "选择你的基础学派"
 horizontal_alignment = 1
 
 [node name="SelectDesc" type="Label" parent="HUD/SelectPanel/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "本局仅使用该系基础弹（指尖即射）
 终极：暴风雪 / 火风暴 所有人都能用"
 horizontal_alignment = 1
@@ -267,21 +267,21 @@ alignment = 1
 
 [node name="BtnSpellFire" type="Button" parent="HUD/SelectPanel/Margin/VBox/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 72)
+custom_minimum_size = Vector2(240, 96)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 30
 text = "🔥 火球"
 
 [node name="BtnSpellFrost" type="Button" parent="HUD/SelectPanel/Margin/VBox/SelectBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 72)
+custom_minimum_size = Vector2(240, 96)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 30
 text = "❄ 寒冰"
 
 [node name="SelectDwellBar" type="ProgressBar" parent="HUD/SelectPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 16)
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
@@ -290,7 +290,7 @@ show_percentage = false
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.78, 0.85, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "体感：悬停 1.5 秒确认  ·  键鼠：点击或按 1/2"
 horizontal_alignment = 1
 autowrap_mode = 3
@@ -303,10 +303,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -420.0
-offset_top = -210.0
-offset_right = 420.0
-offset_bottom = 210.0
+offset_left = -520.0
+offset_top = -280.0
+offset_right = 520.0
+offset_bottom = 280.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -325,13 +325,13 @@ theme_override_constants/separation = 12
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
-theme_override_font_sizes/font_size = 26
+theme_override_font_sizes/font_size = 38
 text = "波次强化 · 三选一"
 horizontal_alignment = 1
 
 [node name="UpgradeDesc" type="Label" parent="HUD/UpgradePanel/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "选择一项强化带入下一波"
 horizontal_alignment = 1
 
@@ -343,31 +343,31 @@ alignment = 1
 
 [node name="BtnUpgrade0" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(240, 140)
+custom_minimum_size = Vector2(300, 260)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 32
 text = "强化 A"
 autowrap_mode = 3
 
 [node name="BtnUpgrade1" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(240, 140)
+custom_minimum_size = Vector2(300, 260)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 32
 text = "强化 B"
 autowrap_mode = 3
 
 [node name="BtnUpgrade2" type="Button" parent="HUD/UpgradePanel/Margin/VBox/UpgradeBar"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(240, 140)
+custom_minimum_size = Vector2(300, 260)
 layout_mode = 2
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 32
 text = "强化 C"
 autowrap_mode = 3
 
 [node name="UpgradeDwellBar" type="ProgressBar" parent="HUD/UpgradePanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
@@ -375,14 +375,14 @@ show_percentage = false
 [node name="UpgradeHint" type="Label" parent="HUD/UpgradePanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.75, 0.78, 0.85, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "体感：悬停 1.2 秒  ·  键鼠：点击或 1/2/3"
 horizontal_alignment = 1
 
 [node name="LblUpgrades" type="Label" parent="HUD/TopLeft"]
 unique_name_in_owner = true
 theme_override_colors/font_color = Color(0.75, 0.8, 0.9, 0.95)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 text = "强化 无"
 
 [node name="StartPanel" type="PanelContainer" parent="HUD"]
@@ -392,10 +392,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = -250.0
-offset_right = 260.0
-offset_bottom = 250.0
+offset_left = -340.0
+offset_top = -300.0
+offset_right = 340.0
+offset_bottom = 300.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -413,13 +413,13 @@ theme_override_constants/separation = 12
 [node name="Title" type="Label" parent="HUD/StartPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.82, 0.48, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 40
 text = "WoW Body · 魔法大战"
 horizontal_alignment = 1
 
 [node name="Desc" type="Label" parent="HUD/StartPanel/Margin/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
+theme_override_font_sizes/font_size = 24
 text = "纯体感魔法大战 · 无需键鼠
 把手伸到摄像头前，悬停开始按钮 3 秒"
 horizontal_alignment = 1
@@ -428,7 +428,7 @@ autowrap_mode = 3
 [node name="How" type="Label" parent="HUD/StartPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.8, 0.78, 0.72, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 22
 text = "① 允许摄像头（Godot + Hand Server）
 ② 把手伸到画面，骨架跟随
 ③ 悬停「开始」3 秒 → 选择火/冰学派
@@ -440,22 +440,22 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 text = "正在准备手势…"
 
 [node name="StartDwellBar" type="ProgressBar" parent="HUD/StartPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 18)
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
 
 [node name="BtnStart" type="Button" parent="HUD/StartPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 30
 text = "把手放在按钮上 3 秒开始"
 
 [node name="GameOverPanel" type="PanelContainer" parent="HUD"]
@@ -487,20 +487,20 @@ theme_override_constants/separation = 14
 [node name="OverTitle" type="Label" parent="HUD/GameOverPanel/Margin/VBox"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.7, 0.28, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 44
 text = "战败"
 horizontal_alignment = 1
 
 [node name="RestartDwellBar" type="ProgressBar" parent="HUD/GameOverPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 14)
+custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
 
 [node name="BtnRestart" type="Button" parent="HUD/GameOverPanel/Margin/VBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 52)
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 28
 text = "把手放在按钮上 2 秒重开"

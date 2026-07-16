@@ -3,9 +3,12 @@ extends RefCounted
 ## Basic cast: pointing finger → instant shot (no charge).
 ## Ultimate cast: two-hand rituals via RitualDetector (independent CDs on GameBus).
 
-const FIRE_COOLDOWN_SEC := 0.38
+## Slow base fire rate — upgrades raise it via fire_rate_mult.
+const FIRE_COOLDOWN_SEC := 0.82
 const OPEN_SMOOTH := 14.0
 const INSTANT_POWER := 0.75
+## Point threshold — tuned so clear index-up poses fire reliably.
+const POINT_FIRE_SCORE := 0.48
 
 var phase: StringName = &"idle"
 ## Kept for HUD/palm compatibility; no longer fills for basic shots.
@@ -77,6 +80,12 @@ func update(hands: Array, dt: float, now_sec: float) -> UpdateResult:
 		var det: FistDetector = _fist_detectors[key]
 		sample.is_fist = det.update(sample.landmarks, sample.openness, sample.hand_size)
 		sample.fist_score = det.get_last_score()
+		# Pointing overrides fist: index-out gun pose must never block basic fire.
+		var pscore := PoseClassifier.score_point(sample)
+		if pscore >= 0.42 and sample.is_fist:
+			det.force_release()
+			sample.is_fist = false
+			sample.fist_score = minf(sample.fist_score, 0.35)
 		var pc: PoseClassifier = _pose_classifiers[key]
 		pc.update(sample)
 
@@ -154,10 +163,15 @@ func update(hands: Array, dt: float, now_sec: float) -> UpdateResult:
 	openness += (display.openness - openness) * k
 
 	if cast_hand and phase != &"cooldown" and cooldown <= 0.0:
-		var pointing_ok := (
-			PoseClassifier.score_point(cast_hand) >= 0.42
-			or (cast_hand.openness >= 0.28 and not cast_hand.is_fist)
-		)
+		var pscore := PoseClassifier.score_point(cast_hand)
+		var label_point := false
+		var keyp := _hand_key(cast_hand)
+		if _pose_classifiers.has(keyp):
+			label_point = (_pose_classifiers[keyp] as PoseClassifier).get_label() == PoseClassifier.POSE_POINT
+		# Only true pointing for body. Synthetic mouse hand (all conf=1) may use open aim.
+		var pointing_ok := pscore >= POINT_FIRE_SCORE or (label_point and pscore >= 0.42)
+		if not pointing_ok and _is_synthetic_hand(cast_hand) and cast_hand.openness >= 0.7:
+			pointing_ok = true
 		if pointing_ok:
 			result.cast = true
 			result.cast_hand = cast_hand
@@ -170,8 +184,7 @@ func update(hands: Array, dt: float, now_sec: float) -> UpdateResult:
 		else:
 			charge = 0.0
 	else:
-		# Soft pulse while ready so palm VFX stays alive
-		if cast_hand and cooldown <= 0.0:
+		if cast_hand and cooldown <= 0.0 and PoseClassifier.score_point(cast_hand) >= POINT_FIRE_SCORE:
 			charge = 0.35
 		else:
 			charge = 0.0
@@ -214,26 +227,36 @@ func force_ultimate(ult: StringName) -> UpdateResult:
 
 func _best_point_hand(hands: Array) -> HandTypes.HandSample:
 	var best: HandTypes.HandSample = null
-	var best_score := 0.38
+	var best_score := 0.36
 	for h in hands:
-		if h.is_fist:
-			continue
 		var key := _hand_key(h)
 		var label := PoseClassifier.POSE_UNKNOWN
 		if _pose_classifiers.has(key):
 			label = (_pose_classifiers[key] as PoseClassifier).get_label()
 		var score := PoseClassifier.score_point(h)
+		# Do not skip on is_fist if point score is good (already cleared above, belt+suspenders).
+		if h.is_fist and score < 0.42:
+			continue
 		if label == PoseClassifier.POSE_POINT:
-			score = maxf(score, 0.55)
+			score = maxf(score, 0.52)
 		if score > best_score:
 			best_score = score
 			best = h
-	# Mouse/synthetic fallback: open palm counts as aim hand
 	if best == null:
 		for h in hands:
-			if not h.is_fist and h.openness >= 0.32:
+			if not h.is_fist and _is_synthetic_hand(h) and h.openness >= 0.7:
 				return h
 	return best
+
+
+func _is_synthetic_hand(h: HandTypes.HandSample) -> bool:
+	## Mouse-fallback hands set joint_conf all to 1.0; real Vision conf is mixed.
+	if h == null or h.joint_conf.size() < 21:
+		return false
+	var sum := 0.0
+	for i in 21:
+		sum += h.joint_conf[i]
+	return sum >= 20.5
 
 
 func _prune_dead_hands(hands: Array) -> void:

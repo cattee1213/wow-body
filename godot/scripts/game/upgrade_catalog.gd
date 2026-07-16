@@ -1,6 +1,7 @@
 class_name UpgradeCatalog
 extends RefCounted
 ## Static roguelike upgrade definitions (wave 3-pick-1).
+## 连发 multishot = serial chain. 分裂 split = parallel fan.
 
 const RARITY_COMMON := &"common"
 const RARITY_RARE := &"rare"
@@ -22,6 +23,7 @@ const RARITY_LABEL := {
 const ENTRIES := {
 	&"dmg_c": {
 		"name": "锐化咒文",
+		"icon": "⚔️",
 		"rarity": RARITY_COMMON,
 		"kind": &"damage",
 		"desc": "伤害 +12%",
@@ -30,6 +32,7 @@ const ENTRIES := {
 	},
 	&"dmg_r": {
 		"name": "奥术锋刃",
+		"icon": "🗡️",
 		"rarity": RARITY_RARE,
 		"kind": &"damage",
 		"desc": "伤害 +22%",
@@ -38,6 +41,7 @@ const ENTRIES := {
 	},
 	&"dmg_e": {
 		"name": "灭法之触",
+		"icon": "💥",
 		"rarity": RARITY_EPIC,
 		"kind": &"damage",
 		"desc": "伤害 +40%",
@@ -46,6 +50,7 @@ const ENTRIES := {
 	},
 	&"spd_c": {
 		"name": "迅捷指法",
+		"icon": "💨",
 		"rarity": RARITY_COMMON,
 		"kind": &"atkspd",
 		"desc": "攻速 +10%",
@@ -54,6 +59,7 @@ const ENTRIES := {
 	},
 	&"spd_r": {
 		"name": "连续咏唱",
+		"icon": "⏩",
 		"rarity": RARITY_RARE,
 		"kind": &"atkspd",
 		"desc": "攻速 +18%",
@@ -62,6 +68,7 @@ const ENTRIES := {
 	},
 	&"spd_e": {
 		"name": "超载连射",
+		"icon": "⚡",
 		"rarity": RARITY_EPIC,
 		"kind": &"atkspd",
 		"desc": "攻速 +30%",
@@ -70,6 +77,7 @@ const ENTRIES := {
 	},
 	&"cd_c": {
 		"name": "回响结晶",
+		"icon": "💎",
 		"rarity": RARITY_COMMON,
 		"kind": &"ult_cd",
 		"desc": "终极 CD -8%",
@@ -78,6 +86,7 @@ const ENTRIES := {
 	},
 	&"cd_r": {
 		"name": "时砂怀表",
+		"icon": "⏱️",
 		"rarity": RARITY_RARE,
 		"kind": &"ult_cd",
 		"desc": "终极 CD -15%",
@@ -86,61 +95,99 @@ const ENTRIES := {
 	},
 	&"cd_e": {
 		"name": "永恒沙漏",
+		"icon": "⏳",
 		"rarity": RARITY_EPIC,
 		"kind": &"ult_cd",
 		"desc": "终极 CD -25%",
 		"weight": 1.0,
 		"ult_cd_mult": 0.75,
 	},
+	# --- 连发 serial ---
 	&"ms_chance_c": {
 		"name": "回声火花",
+		"icon": "✨",
 		"rarity": RARITY_COMMON,
 		"kind": &"multishot",
-		"desc": "连发概率 +8%",
+		"desc": "连发率 +8%（串射）",
 		"weight": 1.1,
 		"multishot_chance": 0.08,
 	},
 	&"ms_chance_r": {
 		"name": "二重咏唱",
+		"icon": "🔮",
 		"rarity": RARITY_RARE,
 		"kind": &"multishot",
-		"desc": "连发概率 +14%",
+		"desc": "连发率 +14%（串射）",
 		"weight": 1.1,
 		"multishot_chance": 0.14,
 	},
 	&"ms_chance_e": {
 		"name": "五重魔律",
+		"icon": "🌟",
 		"rarity": RARITY_EPIC,
 		"kind": &"multishot",
-		"desc": "连发概率 +22%",
+		"desc": "连发率 +22%（串射）",
 		"weight": 1.1,
 		"multishot_chance": 0.22,
 	},
 	&"ms_max_c": {
-		"name": "分叉咒",
+		"name": "连珠咒",
+		"icon": "🔗",
 		"rarity": RARITY_COMMON,
 		"kind": &"multishot",
-		"desc": "连发上限 +1",
-		"weight": 0.85,
+		"desc": "连发上限 +1（串射）",
+		"weight": 0.9,
 		"multishot_max": 1,
 	},
 	&"ms_max_r": {
-		"name": "分裂核心",
+		"name": "串击核心",
+		"icon": "📎",
 		"rarity": RARITY_RARE,
 		"kind": &"multishot",
-		"desc": "连发上限 +1，概率 +6%",
-		"weight": 0.85,
+		"desc": "连发上限 +1，率 +6%",
+		"weight": 0.9,
 		"multishot_max": 1,
 		"multishot_chance": 0.06,
 	},
 	&"ms_max_e": {
 		"name": "连珠圣典",
+		"icon": "📜",
 		"rarity": RARITY_EPIC,
 		"kind": &"multishot",
-		"desc": "连发上限 +2，概率 +10%",
-		"weight": 0.85,
+		"desc": "连发上限 +2，率 +10%",
+		"weight": 0.9,
 		"multishot_max": 2,
 		"multishot_chance": 0.10,
+	},
+	# --- 分裂 parallel (probability, main ray stays on aim) ---
+	&"split_c": {
+		"name": "分叉咒",
+		"icon": "🔀",
+		"rarity": RARITY_COMMON,
+		"kind": &"split",
+		"desc": "分裂率 +10%（侧弹并行）",
+		"weight": 0.95,
+		"split_chance": 0.10,
+	},
+	&"split_r": {
+		"name": "三棱裂",
+		"icon": "💠",
+		"rarity": RARITY_RARE,
+		"kind": &"split",
+		"desc": "分裂率 +16%，上限 +1",
+		"weight": 0.95,
+		"split_chance": 0.16,
+		"split_max": 1,
+	},
+	&"split_e": {
+		"name": "裂空阵",
+		"icon": "🌀",
+		"rarity": RARITY_EPIC,
+		"kind": &"split",
+		"desc": "分裂率 +22%，上限 +2",
+		"weight": 0.9,
+		"split_chance": 0.22,
+		"split_max": 2,
 	},
 }
 

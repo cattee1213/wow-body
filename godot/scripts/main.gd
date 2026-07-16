@@ -138,7 +138,7 @@ func _ready() -> void:
 	if gesture_cursor:
 		gesture_cursor.pivot_offset = gesture_cursor.size * 0.5
 		if gesture_cursor.pivot_offset.length_squared() < 1.0:
-			gesture_cursor.pivot_offset = Vector2(36, 36)
+			gesture_cursor.pivot_offset = Vector2(48, 48)
 		gesture_cursor.visible = false
 
 	_apply_input_mode(false)
@@ -157,12 +157,28 @@ func _on_sensing_active_changed(active: bool) -> void:
 func _apply_input_mode(sensing: bool) -> void:
 	_sensing_active = sensing
 	if sensing:
-		# Body mode owns input completely — ignore OS mouse on UI and hide cursor.
-		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+		# Body owns input: confine+hide cursor, ignore all UI mouse hits.
+		Input.mouse_mode = Input.MOUSE_MODE_CONFINED_HIDDEN
 		_set_buttons_mouse_filter(Control.MOUSE_FILTER_IGNORE)
+		if start_panel:
+			start_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if select_panel:
+			select_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if upgrade_panel:
+			upgrade_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if game_over_panel:
+			game_over_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	else:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		_set_buttons_mouse_filter(Control.MOUSE_FILTER_STOP)
+		if start_panel:
+			start_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		if select_panel:
+			select_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		if upgrade_panel:
+			upgrade_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		if game_over_panel:
+			game_over_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 
 
 func _set_buttons_mouse_filter(mode: Control.MouseFilter) -> void:
@@ -293,14 +309,15 @@ func _paint_upgrade_buttons() -> void:
 		var e: Dictionary = UpgradeCatalog.get_entry(id)
 		var rarity: StringName = e.get("rarity", UpgradeCatalog.RARITY_COMMON)
 		var col: Color = UpgradeCatalog.rarity_color(rarity)
-		var preview := GameBus.upgrades.preview_line(id)
-		btn.text = "[%s] %s\n%s\n%s" % [
-			UpgradeCatalog.rarity_label(rarity),
-			str(e.get("name", id)),
-			str(e.get("desc", "")),
-			preview,
-		]
-		btn.modulate = col.lerp(Color.WHITE, 0.25)
+		var icon := str(e.get("icon", "✦"))
+		var name := str(e.get("name", id))
+		var desc := str(e.get("desc", ""))
+		var rarity_txt := UpgradeCatalog.rarity_label(rarity)
+		# Large icon + big title for couch / body-play distance
+		btn.text = "%s\n%s\n%s\n%s" % [icon, name, desc, rarity_txt]
+		btn.add_theme_font_size_override("font_size", 34)
+		btn.custom_minimum_size = Vector2(300, 260)
+		btn.modulate = col.lerp(Color.WHITE, 0.2)
 
 
 func _confirm_upgrade(index: int) -> void:
@@ -409,8 +426,8 @@ func _process(dt: float) -> void:
 	var sensing_now := tracker.is_sensing_active()
 	if sensing_now != _sensing_active:
 		_apply_input_mode(sensing_now)
-	elif sensing_now and Input.mouse_mode != Input.MOUSE_MODE_HIDDEN:
-		Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
+	elif sensing_now and Input.mouse_mode != Input.MOUSE_MODE_CONFINED_HIDDEN and Input.mouse_mode != Input.MOUSE_MODE_HIDDEN:
+		Input.mouse_mode = Input.MOUSE_MODE_CONFINED_HIDDEN
 
 	var hands: Array = tracker.get_hands()
 	var palm_px := _primary_palm_px(hands)
@@ -670,10 +687,17 @@ func _paint_select_dwell(active: DwellTarget) -> void:
 func _primary_palm_px(hands: Array) -> Vector2:
 	var vp := get_viewport_rect().size
 	if hands.size() > 0:
+		# Prefer the hand we're actually casting with (best point score).
 		var h: HandTypes.HandSample = hands[0]
+		var best_s := -1.0
+		for cand in hands:
+			var s := PoseClassifier.score_point(cand)
+			if s > best_s:
+				best_s = s
+				h = cand
 		_has_palm = true
-		# Prefer index tip when pointing for cursor
-		if h.landmarks.size() > HandTypes.LM_INDEX_TIP and PoseClassifier.score_point(h) > 0.45:
+		# Pointing / near-pointing: cursor & dwell on index tip (not palm center).
+		if h.landmarks.size() > HandTypes.LM_INDEX_TIP and best_s >= 0.38:
 			_last_palm_px = h.landmarks[HandTypes.LM_INDEX_TIP] * vp
 		else:
 			_last_palm_px = h.palm * vp
@@ -771,11 +795,14 @@ func _sync_palms_menu_or_game(hands: Array) -> void:
 	for h in hands:
 		if not h.is_fist:
 			show_hands.append(h)
+	# Prefer highest point-score hand first so VFX sits on the aiming finger.
+	show_hands.sort_custom(func(a, b): return PoseClassifier.score_point(a) > PoseClassifier.score_point(b))
 	for i in _palms.size():
 		var palm_vfx: PalmVfx = _palms[i]
 		palm_vfx.set_spell(_gesture.spell)
 		if i < show_hands.size():
 			var h: HandTypes.HandSample = show_hands[i]
+			var pscore := PoseClassifier.score_point(h)
 			var ch: float
 			if _playing:
 				if _gesture.ritual_channel > 0.05:
@@ -783,15 +810,14 @@ func _sync_palms_menu_or_game(hands: Array) -> void:
 					if _gesture.ritual_active != &"":
 						palm_vfx.set_spell(GameBus.element_for(_gesture.ritual_active))
 				else:
-					# No charge mode: soft idle glow while aiming / cooling down
 					var ready := 0.55 if _gesture.cooldown <= 0.0 else 0.2
-					ch = maxf(ready * 0.5, PoseClassifier.score_point(h) * 0.75)
+					ch = maxf(ready * 0.45, pscore * 0.85)
 			else:
 				ch = maxf(0.45, h.openness * 0.9)
 				if start_panel.visible and _dwell_start:
 					ch = maxf(ch, 0.35 + _dwell_start.progress * 0.9)
 			var aim := h.palm
-			if PoseClassifier.score_point(h) > 0.45 and h.landmarks.size() > HandTypes.LM_INDEX_TIP:
+			if pscore >= 0.38 and h.landmarks.size() > HandTypes.LM_INDEX_TIP:
 				aim = h.landmarks[HandTypes.LM_INDEX_TIP]
 			palm_vfx.sync(aim * vp, ch, h.openness)
 		else:

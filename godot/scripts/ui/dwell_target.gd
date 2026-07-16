@@ -4,7 +4,7 @@ extends RefCounted
 
 var control: Control
 var duration_sec: float = 3.0
-var padding: float = 18.0
+var padding: float = 28.0
 var id: StringName = &""
 var enabled: bool = true
 

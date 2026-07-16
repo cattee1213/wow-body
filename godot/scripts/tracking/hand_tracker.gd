@@ -10,10 +10,12 @@ enum ControlSource { FALLBACK, BODY }
 const VISION_HOST := "127.0.0.1"
 const VISION_PORT := 17452
 ## Fresh frame window for reading Vision hands.
-const VISION_STALE_SEC := 0.55
+const VISION_STALE_SEC := 0.70
 const VISION_RECONNECT_SEC := 1.25
-## Mouse motion must exceed this (px) to count as intentional fallback activate.
-const MOUSE_ACTIVATE_PX := 3.5
+## After last live hand frame, ignore mouse entirely for this long (prevents track-fail → mouse steal).
+const BODY_MOUSE_GRACE_SEC := 2.5
+## Cumulative mouse travel (px) required to intentionally activate fallback.
+const MOUSE_ACTIVATE_ACCUM_PX := 90.0
 
 @export var mode: Mode = Mode.INPUT
 ## When true, allow keyboard/mouse synthetic hand after explicit user input.
@@ -48,6 +50,9 @@ var _vision_status: String = "off"
 var _control: ControlSource = ControlSource.FALLBACK
 var _last_good_vision_hands: Array = []
 var _fallback_request: bool = false
+var _time_since_live_hands: float = 999.0
+var _mouse_move_accum: float = 0.0
+var _ever_body: bool = false
 
 # Mouse fallback state
 var _touch_open: float = 0.75
@@ -104,17 +109,39 @@ func control_source_label() -> String:
 	return "无输入"
 
 
+func _can_accept_fallback_input() -> bool:
+	## While live hands exist, never accept mouse/key steal.
+	if is_vision_tracking():
+		return false
+	## After leaving body / never body: always ok.
+	if _control != ControlSource.BODY:
+		return true
+	## In body mode without live hands: wait out grace so track glitches don't yield to mouse.
+	return _time_since_live_hands >= BODY_MOUSE_GRACE_SEC
+
+
 func _input(event: InputEvent) -> void:
 	if not mouse_fallback:
 		return
-	# Live hands always win — ignore mouse jitter while tracking.
 	if is_vision_tracking():
 		_fallback_request = false
+		_mouse_move_accum = 0.0
 		return
+	if not _can_accept_fallback_input():
+		# Still in body grace — swallow mouse noise completely.
+		if event is InputEventMouseMotion or event is InputEventMouseButton:
+			return
+		# Keys also ignored during grace (prevent accidental Space steal).
+		if event is InputEventKey:
+			return
+		return
+
 	if event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
-		if mm.relative.length() >= MOUSE_ACTIVATE_PX:
+		_mouse_move_accum += mm.relative.length()
+		if _mouse_move_accum >= MOUSE_ACTIVATE_ACCUM_PX:
 			_fallback_request = true
+			_mouse_move_accum = 0.0
 	elif event is InputEventMouseButton:
 		if (event as InputEventMouseButton).pressed:
 			_fallback_request = true
@@ -127,20 +154,24 @@ func _input(event: InputEvent) -> void:
 			_fallback_request = true
 
 
-func _update_control_source(_dt: float) -> void:
+func _update_control_source(dt: float) -> void:
 	var live := is_vision_tracking()
 	if live:
 		_control = ControlSource.BODY
+		_ever_body = true
 		_last_good_vision_hands = _vision_hands.duplicate()
 		_fallback_request = false
+		_mouse_move_accum = 0.0
+		_time_since_live_hands = 0.0
 		return
-	# No live hands: never auto-drop body mode. Only explicit kb/mouse activates fallback.
-	if _fallback_request and mouse_fallback:
+
+	_time_since_live_hands = minf(_time_since_live_hands + dt, 999.0)
+
+	# No live hands: never auto-drop body. Only intentional kb/mouse after grace.
+	if _fallback_request and mouse_fallback and _can_accept_fallback_input():
 		_control = ControlSource.FALLBACK
 		_fallback_request = false
-		# Keep last vision pose around for a potential return to body; clear only if never had hands
-		# (optional clear when entering fallback so synthetic hand is clean)
-		# Keep last_good for if vision returns.
+		_mouse_move_accum = 0.0
 
 
 func start_camera() -> bool:
@@ -204,10 +235,11 @@ func _process(delta: float) -> void:
 	if sensing != _was_sensing:
 		_was_sensing = sensing
 		sensing_active_changed.emit(sensing)
-		if sensing:
-			Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
-		elif mouse_fallback:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_apply_mouse_mode(sensing)
+	elif sensing:
+		# Keep re-asserting hidden — OS/focus can restore the cursor.
+		if Input.mouse_mode != Input.MOUSE_MODE_HIDDEN and Input.mouse_mode != Input.MOUSE_MODE_CONFINED_HIDDEN:
+			_apply_mouse_mode(true)
 
 	# Only drive synthetic hand while fallback is explicitly active
 	if not sensing and mouse_fallback:
@@ -215,6 +247,14 @@ func _process(delta: float) -> void:
 
 	_hands = _build_hands()
 	hands_updated.emit(_hands)
+
+
+func _apply_mouse_mode(sensing: bool) -> void:
+	if sensing:
+		# Prefer confined-hidden so the cursor cannot wander into UI.
+		Input.mouse_mode = Input.MOUSE_MODE_CONFINED_HIDDEN
+	elif mouse_fallback:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _ensure_vision_server() -> void:

@@ -127,7 +127,7 @@ func _ensure_status_fx() -> void:
 		_status_label = Label.new()
 		_status_label.name = "StatusLabel"
 		_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_status_label.add_theme_font_size_override("font_size", 12)
+		_status_label.add_theme_font_size_override("font_size", 18)
 		_status_label.position = Vector2(-40, -radius - 36)
 		_status_label.size = Vector2(80, 18)
 		add_child(_status_label)

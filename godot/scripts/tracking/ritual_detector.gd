@@ -76,8 +76,10 @@ func _detect(hands: Array) -> StringName:
 		a = sorted[0]
 		b = sorted[1]
 
-	var fist_a := a.is_fist or a.fist_score >= 0.58
-	var fist_b := b.is_fist or b.fist_score >= 0.58
+	# Dual-fist only for chain-like rituals (none currently); open palms for blizzard/firestorm.
+	# Do not treat pointing hands as fists.
+	var fist_a := (a.is_fist or a.fist_score >= 0.70) and PoseClassifier.score_point(a) < 0.4
+	var fist_b := (b.is_fist or b.fist_score >= 0.70) and PoseClassifier.score_point(b) < 0.4
 	var open_a := (not fist_a) and a.openness >= 0.22
 	var open_b := (not fist_b) and b.openness >= 0.22
 

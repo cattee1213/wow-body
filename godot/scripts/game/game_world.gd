@@ -11,6 +11,8 @@ signal wave_cleared(completed_wave: int)
 const PLAYER_MAX_HP := 5
 const MONSTER_BASE_HP := 3
 const BASE_SPEED := 1550.0
+## Kills required to clear a wave (longer waves for body play).
+const KILLS_PER_WAVE := 12
 
 var score: int = 0
 var kills: int = 0
@@ -82,22 +84,39 @@ func cast_spell(from_norm: Vector2, spell: StringName, power: float) -> void:
 	var vp := get_viewport_rect().size
 	var palm := Vector2(from_norm.x * vp.x, from_norm.y * vp.y)
 	var dir := _aim_dir_from_palm(palm)
-	var shots := GameBus.upgrades.roll_shot_count()
-	for i in shots:
-		var shot_dir := dir
-		if i > 0:
-			shot_dir = dir.rotated(randf_range(-0.12, 0.12))
-		_spawn_projectile(palm, spell, power, shot_dir)
+	# 分裂 = parallel fan; 连发 = serial volleys
+	var volleys: int = GameBus.upgrades.roll_multishot_volleys()
+	_fire_split_volley(palm, spell, power, dir)
+	for i in range(1, volleys):
+		var delay := 0.08 * float(i)
+		var captured_palm := palm
+		var captured_dir := dir
+		var captured_spell := spell
+		var captured_power := power
+		get_tree().create_timer(delay).timeout.connect(func():
+			if game_over or awaiting_upgrade or not is_instance_valid(self):
+				return
+			_fire_split_volley(captured_palm, captured_spell, captured_power, captured_dir)
+		)
 
 	_spawn_cast_flash(palm, spell, power)
 	if _sfx:
 		_sfx.play_spell(spell)
-	if shots > 1:
-		message = "%s×%d" % [GameBus.spell_cast_text(spell), shots]
+	var tag := GameBus.spell_cast_text(spell)
+	if volleys > 1:
+		message = "%s 连发×%d" % [tag, volleys]
 	else:
-		message = GameBus.spell_cast_text(spell)
+		message = tag
 	message_ttl = 0.55
 	emit_signal("state_changed")
+
+
+func _fire_split_volley(palm: Vector2, spell: StringName, power: float, dir: Vector2) -> void:
+	## Main ray always along `dir` (angle 0). Side pellets optional & probabilistic.
+	var angles: PackedFloat32Array = GameBus.upgrades.split_angles_for_volley()
+	for a in angles:
+		var shot_dir := dir if absf(a) < 0.0001 else dir.rotated(a)
+		_spawn_projectile(palm, spell, power, shot_dir)
 
 
 func _aim_dir_from_palm(palm: Vector2) -> Vector2:
@@ -119,7 +138,7 @@ func _aim_dir_from_palm(palm: Vector2) -> Vector2:
 
 
 func _spawn_projectile(palm: Vector2, spell: StringName, power: float, dir: Vector2) -> void:
-	var origin := palm + dir * 36.0
+	var origin := palm + dir * 28.0
 	var speed := BASE_SPEED * (1.0 + clampf(power, 0.0, 1.0) * 0.2)
 	var proj := SpellProjectile.new()
 	projectile_layer.add_child(proj)
@@ -299,14 +318,15 @@ func _physics_process(dt: float) -> void:
 	_tick_ultimates(dt)
 
 	var vp := get_viewport_rect().size
-	var target_count := mini(2 + int(wave / 2.0), 6)
+	# More on-screen monsters, slightly faster respawn → longer, denser waves.
+	var target_count := mini(3 + int(wave * 0.75), 9)
 	spawn_timer -= dt
 	if _monsters.size() < target_count and spawn_timer <= 0.0:
 		_spawn_monster(vp)
-		spawn_timer = maxf(0.8, 2.2 - wave * 0.12)
+		spawn_timer = maxf(0.55, 1.65 - wave * 0.08)
 
-	if kills > 0 and kills % 5 == 0:
-		var expected := 1 + int(kills / 5.0)
+	if kills > 0 and kills % KILLS_PER_WAVE == 0:
+		var expected := 1 + int(kills / float(KILLS_PER_WAVE))
 		if expected > wave and not _wave_offer_pending:
 			var completed := wave
 			wave = expected
@@ -451,11 +471,11 @@ func _spawn_cast_flash(pos: Vector2, spell: StringName, power: float) -> void:
 
 	if charge_frames.size() > 0:
 		var a := AnimatedVfxSprite.new()
-		a.setup(charge_frames, 24.0, false, 100.0 + power * 50.0)
+		a.setup(charge_frames, 24.0, false, 64.0 + power * 28.0)
 		node.add_child(a)
 	if hold_frames.size() > 0:
 		var b := AnimatedVfxSprite.new()
-		b.setup(hold_frames, 20.0, false, 80.0 + power * 30.0)
+		b.setup(hold_frames, 20.0, false, 54.0 + power * 20.0)
 		b.modulate = Color(1, 1, 1, 0.85)
 		node.add_child(b)
 
@@ -478,16 +498,16 @@ func _spawn_impact(pos: Vector2, spell: StringName, power: float = 0.7) -> void:
 
 	# Main impact animation
 	var main := AnimatedVfxSprite.new()
-	main.setup(frames, 18.0, false, 120.0 + power * 55.0)
+	main.setup(frames, 18.0, false, 86.0 + power * 36.0)
 	root.add_child(main)
 
-	# Second layer: larger, additive-looking flash (first frame)
+	# Second layer: flash (first frame)
 	var flash := Sprite2D.new()
 	flash.centered = true
 	flash.texture = frames[0]
 	flash.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var longest := maxf(frames[0].get_size().x, frames[0].get_size().y)
-	var fs := (160.0 + power * 60.0) / maxf(longest, 1.0)
+	var fs := (96.0 + power * 36.0) / maxf(longest, 1.0)
 	flash.scale = Vector2(fs, fs) * 0.6
 	flash.modulate = Color(1, 1, 1, 0.75)
 	flash.z_index = -1
