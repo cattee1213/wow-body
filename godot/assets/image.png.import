@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dlwnxkfg82825"
-path="res://.godot/imported/spell_atlas_ultimate.png-2e47349275f601b2cb4633d280e4e6de.ctex"
+uid="uid://cuvf3j5ib6a88"
+path="res://.godot/imported/image.png-7a7bd711b5b4054e846c70397f9ba855.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/vfx/spell_atlas_ultimate.png"
-dest_files=["res://.godot/imported/spell_atlas_ultimate.png-2e47349275f601b2cb4633d280e4e6de.ctex"]
+source_file="res://assets/image.png"
+dest_files=["res://.godot/imported/image.png-7a7bd711b5b4054e846c70397f9ba855.ctex"]
 
 [params]
 

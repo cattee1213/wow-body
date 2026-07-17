@@ -13,6 +13,9 @@ const MONSTER_BASE_HP := 3
 const BASE_SPEED := 1190.0
 ## Kills required to clear a wave (longer waves for body play).
 const KILLS_PER_WAVE := 12
+## Rain bolt size vs basic (~72–96px): clearly larger to sell ultimate power.
+const RAIN_SIZE_MIN := 130.0
+const RAIN_SIZE_MAX := 210.0
 
 var score: int = 0
 var kills: int = 0
@@ -183,7 +186,10 @@ func _begin_field_ultimate(ult: StringName, power: float) -> void:
 	var tick := float(meta.get("tick", 0.3))
 	var dmg: float = float(meta.get("damage", 0.8)) * (0.85 + power * 0.3) * float(GameBus.upgrades.damage_mult)
 	var vp := get_viewport_rect().size
-	var root := _spawn_ultimate_overlay(ult, vp)
+	var root := _spawn_ultimate_overlay(ult, vp, power)
+	# Opening volley: dense rain of oversized basic projectiles
+	for i in 14:
+		_spawn_rain_bolt(root, ult, vp, power, true)
 	_ultimates.append({
 		"id": ult,
 		"t": 0.0,
@@ -193,6 +199,7 @@ func _begin_field_ultimate(ult: StringName, power: float) -> void:
 		"damage": dmg,
 		"power": power,
 		"root": root,
+		"rain_left": 0.0,
 	})
 	# Immediate first pulse
 	_pulse_field_ultimate(ult, dmg, power)
@@ -200,11 +207,14 @@ func _begin_field_ultimate(ult: StringName, power: float) -> void:
 
 func _pulse_field_ultimate(ult: StringName, dmg: float, power: float) -> void:
 	var to_kill: Array = []
+	var element := GameBus.element_for(ult)
 	for m in _monsters:
 		if not is_instance_valid(m) or m.hp <= 0.0:
 			continue
 		m.apply_hit(dmg, ult, power)
 		score += int(8 * dmg)
+		# Impact uses basic-school frames (scaled up for ultimate punch)
+		_spawn_impact(m.position, element, clampf(power + 0.35, 0.7, 1.2))
 		if ult == GameBus.ULT_FIRESTORM:
 			_ember(m.position)
 		elif ult == GameBus.ULT_BLIZZARD:
@@ -215,81 +225,139 @@ func _pulse_field_ultimate(ult: StringName, dmg: float, power: float) -> void:
 		_kill_monster(m, ult)
 
 
-func _spawn_ultimate_overlay(ult: StringName, vp: Vector2, life_hint: float = -1.0) -> Node2D:
-	SpellVfxLibrary.ensure_loaded()
+func _spawn_ultimate_overlay(ult: StringName, vp: Vector2, power: float = 1.0) -> Node2D:
+	## No dedicated ultimate atlas — rain of basic projectiles + color wash.
 	var root := Node2D.new()
 	root.z_index = 8
-	root.position = vp * 0.5
+	root.position = Vector2.ZERO
 	fx_layer.add_child(root)
 
-	var cast_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_CAST)
-	var loop_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_LOOP)
-	var hold_frames := SpellVfxLibrary.get_frames(ult, SpellVfxLibrary.STATE_HOLD)
-
-	# Fullscreen-ish cast burst
-	if cast_frames.size() > 0:
-		var cast_spr := Sprite2D.new()
-		cast_spr.centered = true
-		cast_spr.texture = cast_frames[0]
-		cast_spr.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		var longest := maxf(cast_frames[0].get_size().x, cast_frames[0].get_size().y)
-		var target := maxf(vp.x, vp.y) * 0.95
-		var s := target / maxf(longest, 1.0)
-		cast_spr.scale = Vector2(s, s) * 0.55
-		cast_spr.modulate = Color(1, 1, 1, 0.95)
-		root.add_child(cast_spr)
-		var tw := create_tween()
-		tw.tween_property(cast_spr, "scale", Vector2(s, s) * 1.05, 0.35).set_ease(Tween.EASE_OUT)
-		tw.parallel().tween_property(cast_spr, "modulate:a", 0.15 if life_hint < 0.0 else 0.0, 0.4)
-
-	# Loop / field layer
-	var field_frames: Array = loop_frames if loop_frames.size() > 0 else hold_frames
-	if field_frames.size() > 0 and life_hint < 0.0:
-		var field := Sprite2D.new()
-		field.name = "Field"
-		field.centered = true
-		field.texture = field_frames[0]
-		field.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		var fl := maxf(field_frames[0].get_size().x, field_frames[0].get_size().y)
-		var fs := (maxf(vp.x, vp.y) * 1.05) / maxf(fl, 1.0)
-		field.scale = Vector2(fs, fs)
-		field.modulate = Color(1, 1, 1, 0.55)
-		field.z_index = -1
-		root.add_child(field)
-
-	# Color wash
+	# Soft screen wash (element tint)
 	var wash := ColorRect.new()
-	wash.size = vp * 1.2
-	wash.position = -wash.size * 0.5
+	wash.name = "Wash"
+	wash.size = vp * 1.15
+	wash.position = Vector2(-vp.x * 0.075, -vp.y * 0.075)
 	var wc := GameBus.spell_color(ult)
-	wc.a = 0.14
+	wc.a = 0.16 + power * 0.04
 	wash.color = wc
 	wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wash.z_index = -2
 	root.add_child(wash)
-	var tw2 := create_tween()
-	tw2.tween_property(wash, "color:a", 0.05, 0.5)
+	var tw := create_tween()
+	tw.tween_property(wash, "color:a", 0.06, 0.55)
 
 	return root
+
+
+func _spawn_rain_bolt(
+	root: Node2D,
+	ult: StringName,
+	vp: Vector2,
+	power: float,
+	opening: bool = false
+) -> void:
+	if not is_instance_valid(root):
+		return
+	SpellVfxLibrary.ensure_loaded()
+	var element := GameBus.element_for(ult)
+	var frames: Array = SpellVfxLibrary.get_frames(element, SpellVfxLibrary.STATE_PROJECTILE)
+	if frames.is_empty():
+		return
+	var tex: Texture2D = frames[0]
+
+	var bolt := Sprite2D.new()
+	bolt.centered = true
+	bolt.texture = tex
+	bolt.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	bolt.z_index = 1
+
+	# Spawn above the viewport; slight x jitter so columns don't look uniform.
+	var x := randf_range(-20.0, vp.x + 20.0)
+	var y := randf_range(-160.0, -40.0) if opening else randf_range(-180.0, -30.0)
+	if opening:
+		# Opening volley also seeds mid-screen for instant density.
+		if randf() < 0.35:
+			y = randf_range(-40.0, vp.y * 0.35)
+	bolt.position = Vector2(x, y)
+
+	# Tip points +X in art → rotate so bolts fall downward (with slight tilt).
+	var tilt := randf_range(-0.22, 0.22)
+	bolt.rotation = PI * 0.5 + tilt
+
+	var size_px := randf_range(RAIN_SIZE_MIN, RAIN_SIZE_MAX) * (0.9 + power * 0.2)
+	var longest := maxf(tex.get_size().x, tex.get_size().y)
+	var s := size_px / maxf(longest, 1.0)
+	bolt.scale = Vector2(s, s)
+	bolt.modulate = Color(1, 1, 1, randf_range(0.72, 0.98))
+
+	# Soft ghost trail (reuse same projectile art)
+	var ghost := Sprite2D.new()
+	ghost.centered = true
+	ghost.texture = tex
+	ghost.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	ghost.modulate = Color(1, 1, 1, 0.28)
+	ghost.z_index = -1
+	ghost.scale = Vector2(s * 0.88, s * 0.88)
+	ghost.position = Vector2(-18.0, 0.0) # behind tip in local +X frame
+	bolt.add_child(ghost)
+
+	root.add_child(bolt)
+
+	# Fall speed: fire rain slightly faster; both larger → feel heavy.
+	var fall_speed := randf_range(520.0, 820.0)
+	if ult == GameBus.ULT_FIRESTORM:
+		fall_speed *= 1.12
+	var drift := randf_range(-60.0, 60.0)
+	var fall_dist := vp.y - y + 120.0
+	var fall_time := clampf(fall_dist / fall_speed, 0.45, 1.8)
+
+	var end := Vector2(x + drift, vp.y + 80.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(bolt, "position", end, fall_time).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tw.tween_property(bolt, "modulate:a", 0.15, fall_time)
+	tw.chain().tween_callback(func():
+		if is_instance_valid(bolt):
+			# Occasional ground splash (basic impact) — sparse to avoid FX spam
+			if randf() < 0.22:
+				_spawn_impact(Vector2(end.x, vp.y * randf_range(0.72, 0.95)), element, 0.5)
+			bolt.queue_free()
+	)
 
 
 func _tick_ultimates(dt: float) -> void:
 	if _ultimates.is_empty():
 		return
+	var vp := get_viewport_rect().size
 	var live: Array = []
 	for u in _ultimates:
 		if not (u is Dictionary):
 			continue
 		u["t"] = float(u["t"]) + dt
 		var root: Node2D = u.get("root", null)
-		if is_instance_valid(root):
-			var field := root.get_node_or_null("Field") as Sprite2D
-			if field:
-				field.modulate.a = 0.4 + 0.18 * sin(elapsed * 6.0)
-				field.rotation = sin(elapsed * 0.7) * 0.04
+		var ult: StringName = u["id"]
+		var power := float(u["power"])
+
+		# Continuous rain of basic projectiles while field is active
+		if is_instance_valid(root) and float(u["t"]) < float(u["duration"]):
+			u["rain_left"] = float(u.get("rain_left", 0.0)) - dt
+			if float(u["rain_left"]) <= 0.0:
+				# ~12–16 bolts/sec depending on element
+				var interval := 0.07 if ult == GameBus.ULT_FIRESTORM else 0.08
+				u["rain_left"] = interval
+				var burst := 2 if randf() < 0.45 else 1
+				for i in burst:
+					_spawn_rain_bolt(root, ult, vp, power, false)
+			# Pulse wash alpha gently
+			var wash := root.get_node_or_null("Wash") as ColorRect
+			if wash:
+				var base_a := 0.05 + 0.04 * (0.5 + 0.5 * sin(elapsed * 5.0))
+				wash.color.a = base_a
+
 		u["tick_left"] = float(u["tick_left"]) - dt
 		if float(u["tick_left"]) <= 0.0:
 			u["tick_left"] = float(u["tick"])
-			_pulse_field_ultimate(u["id"], float(u["damage"]), float(u["power"]))
+			_pulse_field_ultimate(ult, float(u["damage"]), power)
 		if float(u["t"]) < float(u["duration"]):
 			live.append(u)
 		else:

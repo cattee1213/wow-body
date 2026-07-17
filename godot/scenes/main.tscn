@@ -216,7 +216,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(220, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 26
-text = "🌪 火风暴"
+text = "🔥 火焰雨"
 
 [node name="SelectPanel" type="PanelContainer" parent="HUD"]
 unique_name_in_owner = true
@@ -255,7 +255,7 @@ horizontal_alignment = 1
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "本局仅使用该系基础弹（指尖即射）
-终极：暴风雪 / 火风暴 所有人都能用"
+终极：暴风雪 / 火焰雨 所有人都能用"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -433,7 +433,7 @@ text = "① 允许摄像头（Godot + Hand Server）
 ② 把手伸到画面，骨架跟随
 ③ 悬停「开始」3 秒 → 选择火/冰学派
 ④ 指尖瞄准：即射（无蓄力）
-⑤ 双手仪式：暴风雪 / 火风暴
+⑤ 双手仪式：暴风雪 / 火焰雨
 ⑥ 体感激活时忽略鼠标；无手时键鼠备用"
 autowrap_mode = 3
 [node name="LblStatus" type="Label" parent="HUD/StartPanel/Margin/VBox"]

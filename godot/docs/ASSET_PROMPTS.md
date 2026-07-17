@@ -38,8 +38,7 @@ PNG with alpha, soft bloom edges, readable at small size
 ```text
 godot/assets/vfx/fire/
 godot/assets/vfx/frost/
-godot/assets/vfx/blizzard/
-godot/assets/vfx/firestorm/
+# 终极无独立目录：暴风雪/火焰雨在运行时用基础 projectile 组合放大
 ```
 
 ### 生成时注意
@@ -56,8 +55,6 @@ godot/assets/vfx/firestorm/
 ```text
 vfx/fire/{hold,charge,projectile,impact}_0.png
 vfx/frost/...
-vfx/blizzard/{hold,charge,cast,loop}_0.png
-vfx/firestorm/...
 monsters/
 ui/
 upgrades/
@@ -113,31 +110,17 @@ PNG with alpha, soft bloom edges, readable at small size
 
 ---
 
-### 2.3 暴风雪 `blizzard` → `assets/vfx/blizzard/`
+### 2.3 终极视觉（无独立素材）
 
-| 文件 | 用途 | 英文提示词 |
-|------|------|------------|
-| `hold_0.png` | 仪式预备 | `dual-hand blizzard magic sigil forming above, swirling snow vortex, pale cyan runes, cold mist gathering, ritual ice magic` |
-| `charge_0.png` | 双手高举蓄力 | `building blizzard storm sphere, dense swirling snow and ice shards, bright arctic core, powerful cryomancy charge, vertical energy rising` |
-| `cast_0.png` | 释放瞬间爆发 | `blizzard cast burst from above, massive ice storm explosion, snow cyclone erupting, full-screen ice magic detonation, dramatic cyan-white flash` |
-| `loop_0.png` | 持续全屏场 | `seamless blizzard field overlay, falling snow and ice shards, soft frozen fog, continuous storm weather magic, tile-friendly circular storm pattern` |
+- **暴风雪**：大量放大后的 `frost/projectile` 从天而降  
+- **火焰雨**：大量放大后的 `fire/projectile` 从天而降  
+- 命中复用对应系 `impact`  
 
-**注意：** `loop` 会叠在全屏，**中心亮、边缘渐隐到透明**，避免整图不透明白雾盖死摄像头画面。
+无需再为 `blizzard` / `firestorm` 出独立图集。
 
 ---
 
-### 2.4 火风暴 `firestorm` → `assets/vfx/firestorm/`
-
-| 文件 | 用途 | 英文提示词 |
-|------|------|------------|
-| `hold_0.png` | 合掌预备 | `dual-hand firestorm sigil, twin flame pillars merging, orange-crimson ritual circle, heat haze, fire magic gathering` |
-| `charge_0.png` | 合掌蓄力 | `building firestorm vortex, spinning inferno tornado forming, white-hot core, rising flame columns, charged pyromancy` |
-| `cast_0.png` | 释放爆发 | `firestorm cast detonation, towering inferno cyclone bursting open, volcanic shockwave, radial flame columns, epic orange-red explosion` |
-| `loop_0.png` | 持续火场 | `seamless firestorm field, raining embers and flame pillars, heat distortion, continuous inferno weather magic, soft transparent edges` |
-
----
-
-### 2.5 可选：多帧动画
+### 2.4 可选：多帧动画
 
 代码支持改 `FRAME_COUNTS` 后加载多帧。建议每状态 **4–6 帧**，循环播放。
 

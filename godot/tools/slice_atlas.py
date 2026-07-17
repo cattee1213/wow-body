@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Slice spell VFX atlases into assets/vfx/{spell}/{state}_0.png.
+"""Slice the basic spell VFX atlas into assets/vfx/{spell}/{state}_0.png.
 
-Layouts (3 rows × 4 cols):
-  image.png  (basic)    — fire / frost / lightning × hold,charge,projectile,impact
-  image2.png (ultimate) — blizzard / firestorm / chain × hold,charge,cast,loop
+Layout (3 rows × 4 cols) — image.png only:
+  row 0 fire      — hold, charge, projectile, impact
+  row 1 frost     — hold, charge, projectile, impact
+  row 2 lightning — hold, charge, projectile, impact (kept for future; unused in play)
 
-Usage (from repo root or godot/):
+Ultimates (blizzard / fire rain) reuse basic projectile art in code —
+no dedicated ultimate atlas.
+
+Usage:
   python3 godot/tools/slice_atlas.py
-  python3 godot/tools/slice_atlas.py --pad 512
+  python3 godot/tools/slice_atlas.py --pad 512 --inset 6
 """
 
 from __future__ import annotations
@@ -23,18 +27,11 @@ ASSETS = ROOT / "assets"
 VFX = ASSETS / "vfx"
 
 BASIC_ATLAS = ASSETS / "image.png"
-ULTIMATE_ATLAS = ASSETS / "image2.png"
 
 BASIC_ROWS = [
     ("fire", ["hold", "charge", "projectile", "impact"]),
     ("frost", ["hold", "charge", "projectile", "impact"]),
     ("lightning", ["hold", "charge", "projectile", "impact"]),
-]
-
-ULTIMATE_ROWS = [
-    ("blizzard", ["hold", "charge", "cast", "loop"]),
-    ("firestorm", ["hold", "charge", "cast", "loop"]),
-    ("chain", ["hold", "charge", "cast", "loop"]),
 ]
 
 
@@ -44,11 +41,7 @@ def slice_grid(
     cols: int = 4,
     inset: int = 0,
 ) -> list[list[Image.Image]]:
-    """Even 3×4 grid; remainder pixels go to the last row/col.
-
-    `inset` shrinks each cell from all sides to avoid neighbor bleed
-    (common when plates sit flush against the next cell).
-    """
+    """Even 3×4 grid; remainder pixels go to the last row/col."""
     w, h = img.size
     cells: list[list[Image.Image]] = []
     y0 = 0
@@ -115,12 +108,10 @@ def slice_atlas(
 
 
 def sync_reference_copies() -> None:
-    """Keep named atlas copies in sync for docs / re-slice source of truth."""
     pairs = [
         (BASIC_ATLAS, ASSETS / "atlas_basic_3x4.png"),
         (BASIC_ATLAS, VFX / "spell_atlas_basic.png"),
-        (ULTIMATE_ATLAS, ASSETS / "atlas_ultimate_3x4.png"),
-        (ULTIMATE_ATLAS, VFX / "spell_atlas_ultimate.png"),
+        (BASIC_ATLAS, VFX / "spell_atlas.png"),
     ]
     for src, dst in pairs:
         if src.is_file():
@@ -145,13 +136,12 @@ def main() -> None:
     parser.add_argument(
         "--no-sync-atlases",
         action="store_true",
-        help="Do not refresh atlas_basic/ultimate and spell_atlas_* copies.",
+        help="Do not refresh atlas_basic / spell_atlas_* copies.",
     )
     args = parser.parse_args()
     pad = None if args.pad <= 0 else args.pad
 
     slice_atlas(BASIC_ATLAS, BASIC_ROWS, pad, inset=args.inset)
-    slice_atlas(ULTIMATE_ATLAS, ULTIMATE_ROWS, pad, inset=args.inset)
 
     if not args.no_sync_atlases:
         print("\nSync atlas reference copies:")

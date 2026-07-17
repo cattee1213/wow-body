@@ -1,26 +1,22 @@
 class_name SpellVfxLibrary
 extends RefCounted
 ## Loads sliced VFX frames from assets/vfx/{spell}/
-## Basic states: hold · charge · projectile · impact
-## Ultimate states: hold · charge · cast · loop (+ impact alias)
+## Only basic schools ship art: fire / frost
+## (hold · charge · projectile · impact).
+## Ultimates reuse basic projectile/impact frames via GameBus.element_for().
 
 const STATE_HOLD := &"hold"
 const STATE_CHARGE := &"charge"
 const STATE_PROJECTILE := &"projectile"
 const STATE_IMPACT := &"impact"
-const STATE_CAST := &"cast"
-const STATE_LOOP := &"loop"
 
 const BASIC_STATES: Array[StringName] = [STATE_HOLD, STATE_CHARGE, STATE_PROJECTILE, STATE_IMPACT]
-const ULTIMATE_STATES: Array[StringName] = [STATE_HOLD, STATE_CHARGE, STATE_CAST, STATE_LOOP]
 
 const FRAME_COUNTS := {
 	STATE_HOLD: 1,
 	STATE_CHARGE: 1,
 	STATE_PROJECTILE: 1,
 	STATE_IMPACT: 1,
-	STATE_CAST: 1,
-	STATE_LOOP: 1,
 }
 
 static var _cache: Dictionary = {}
@@ -34,13 +30,13 @@ static func reload() -> void:
 
 
 static func _folder_for(spell: StringName) -> String:
-	match spell:
+	## Map ultimates → their elemental basic folder.
+	var element: StringName = spell
+	if GameBus != null and GameBus.has_method("element_for"):
+		element = GameBus.element_for(spell)
+	match element:
 		&"frost":
 			return "frost"
-		&"blizzard":
-			return "blizzard"
-		&"firestorm":
-			return "firestorm"
 		_:
 			return "fire"
 
@@ -55,20 +51,6 @@ static func ensure_loaded() -> void:
 			_cache[spell_name][state] = _load_state_frames(
 				spell_name, str(state), int(FRAME_COUNTS[state])
 			)
-	for spell_name in ["blizzard", "firestorm"]:
-		_cache[spell_name] = {}
-		for state in ULTIMATE_STATES:
-			_cache[spell_name][state] = _load_state_frames(
-				spell_name, str(state), int(FRAME_COUNTS[state])
-			)
-		# Aliases so shared code paths work
-		var by: Dictionary = _cache[spell_name]
-		if by[STATE_CAST].is_empty() and not by[STATE_CHARGE].is_empty():
-			by[STATE_CAST] = by[STATE_CHARGE]
-		if by[STATE_LOOP].is_empty() and not by[STATE_HOLD].is_empty():
-			by[STATE_LOOP] = by[STATE_HOLD]
-		by[STATE_IMPACT] = by[STATE_LOOP] if not by[STATE_LOOP].is_empty() else by[STATE_CAST]
-		by[STATE_PROJECTILE] = by[STATE_CAST]
 
 
 static func get_frames(spell: StringName, state: StringName) -> Array:

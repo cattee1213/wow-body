@@ -13,8 +13,7 @@ var power: float = 0.7
 var birth_scale: float = 1.0
 
 ## Radians: art's forward direction when node.rotation == 0.
-## Fire faces +X (~0). Frost faces down-right (~0.5). Lightning bolts vary — use first frame.
-## image2 projectiles face roughly +X (right). Lightning slightly up-right.
+## Basic projectile art (image.png) faces +X (right).
 const FACE_OFFSET := {
 	&"fire": 0.0,
 	&"frost": 0.0,

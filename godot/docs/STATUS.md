@@ -25,7 +25,7 @@
     → 选择基础学派（火 / 冰，悬停 1.5s 或 1/2）
     → 战斗
         · 指尖：本系基础弹（即射 + 短冷却，无蓄力）
-        · 双手仪式：暴风雪 / 火风暴（独立 CD）
+        · 双手仪式：暴风雪 / 火焰雨（独立 CD）
     → 战败 → 悬停重开 → 回开始界面（可重选系）
 ```
 
@@ -45,7 +45,7 @@
 | 终极 | ID | 体感手势 | 效果概要 | 默认 CD |
 |------|-----|----------|----------|---------|
 | 暴风雪 | `blizzard` | 双手高举开掌，蓄约 1s | 全屏持续冰伤 + 强减速 | 20s |
-| 火风暴 | `firestorm` | 双手合掌靠近，蓄约 1s | 全屏持续火伤 + 灼烧 | 20s |
+| 火焰雨 | `firestorm` | 双手合掌靠近，蓄约 1s | 全屏持续火伤 + 灼烧 | 20s |
 
 - 仪式识别中**优先于**基础射击；蓄满自动释放。
 - 键鼠：`4` / `5` 或底部按钮。
@@ -80,7 +80,7 @@
 | 开局选系 | ✅ | 火/冰 + dwell / 键 1–2 |
 | 基础弹即射 | ✅ | 无蓄力，短 CD 连射 |
 | 火灼烧 / 冰减速 | ✅ | `Monster.apply_hit` |
-| 双终极全屏 | ✅ | 暴风雪 / 火风暴 |
+| 双终极全屏 | ✅ | 暴风雪 / 火焰雨（基础弹雨视觉） |
 | 终极独立 CD | ✅ | `GameBus.ultimate_cd` |
 | 体感/键鼠切换 | ✅ | 有手=体感；丢手保持；键鼠仅手动激活 |
 | 波末 Roguelike 3 选 1 | ✅ | 伤害/攻速/终CD/连发，详见 `docs/ROGUELIKE_UPGRADES.md` |
@@ -133,7 +133,7 @@
 | 悬停火/冰 1.5s | 锁定本局学派 |
 | 指尖瞄准 | 基础弹即射 |
 | 双手高举开掌 ~1s | 暴风雪 |
-| 双手合掌 ~1s | 火风暴 |
+| 双手合掌 ~1s | 火焰雨 |
 | 战败悬停重开 2s | 回开始 |
 
 ### 键鼠（仅无体感时）
@@ -144,7 +144,7 @@
 | `1` / `2` | 火 / 冰 |
 | 鼠标 | 瞄准 |
 | 空格 | 强制基础弹 |
-| `4` / `5` | 暴风雪 / 火风暴 |
+| `4` / `5` | 暴风雪 / 火焰雨 |
 | `R` | 重开 |
 
 ---
@@ -190,21 +190,20 @@ assets/vfx/{spell}/{state}_0.png
 | 类型 | 目录 | 状态文件 |
 |------|------|----------|
 | 基础 | `fire` `frost` | `hold` `charge` `projectile` `impact` |
-| 终极 | `blizzard` `firestorm` | `hold` `charge` `cast` `loop` |
+| 终极 | 无独立图集 | 运行时用基础 projectile 组合：暴风雪=寒冰箭雨，火焰雨=火球雨（放大） |
 
 源图集（透明底，便于重切）：
 
 - `assets/image.png` — 基础 3×4（火 / 冰 / 电）  
-- `assets/image2.png` — 终极 3×4（暴风雪 / 火风暴 / 闪电链）  
-- 同步副本：`atlas_basic_3x4.png`、`atlas_ultimate_3x4.png`、`vfx/spell_atlas_*.png`  
+- 同步副本：`atlas_basic_3x4.png`、`vfx/spell_atlas_basic.png`  
 
 重切：
 
 ```bash
-python3 tools/slice_atlas.py          # 默认 pad=512、inset=6
+python3 tools/slice_atlas.py          # 默认 pad=512、inset=4
 ```
 
-加载逻辑：`SpellVfxLibrary` 直接读 PNG 文件（不依赖 import 缓存），改图后重启场景即可。
+加载逻辑：`SpellVfxLibrary` 只加载 fire/frost；终极经 `GameBus.element_for` 复用基础帧。
 
 ### 5.4 运行（macOS）
 
@@ -233,13 +232,12 @@ cd godot
 
 | 缺口 | 说明 |
 |------|------|
-| 本系共鸣 | 选火加强火风暴等未做 |
-| 终极独立音效 | 现复用三系 hit wav |
+| 本系共鸣 | 选火加强火焰雨等未做 |
+| 终极独立音效 | 现复用火/冰 hit wav |
 | BGM / 环境音 | 无 |
 | 多帧序列动画 | 每状态仍 1 帧静图 |
-| VFX 抠底质量 | 基础法 `image.png` 透明良好；终极 `image2` 部分帧（如 charge/cast）仍带半透明底板 |
 | 战败结算页 | 无本局统计 / 最高分 |
-| 切片工具 | ✅ `tools/slice_atlas.py`（`image.png` / `image2.png` → vfx 帧） |
+| 切片工具 | ✅ `tools/slice_atlas.py`（仅 `image.png` → 基础 vfx 帧） |
 
 ### 6.3 低优先 / 远期
 
