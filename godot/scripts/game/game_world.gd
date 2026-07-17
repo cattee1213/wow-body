@@ -10,7 +10,7 @@ signal wave_cleared(completed_wave: int)
 
 const PLAYER_MAX_HP := 5
 const MONSTER_BASE_HP := 3
-const BASE_SPEED := 1550.0
+const BASE_SPEED := 1190.0
 ## Kills required to clear a wave (longer waves for body play).
 const KILLS_PER_WAVE := 12
 

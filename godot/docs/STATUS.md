@@ -36,7 +36,7 @@
 | 火 | `fire` | 火球 | 灼烧 DoT |
 | 冰 | `frost` | 寒冰箭 | 减速 |
 
-- **操作**：指尖瞄准 → **立即发射**（约 0.38s 冷却），**无蓄力条/蓄力阶段**。
+- **操作**：指尖瞄准 → **立即发射**（约 1.4s 冷却，可被攻速升级缩短），**无蓄力条/蓄力阶段**。
 - 已移除：雷电基础系、闪电链终极、基础蓄力模式。
 - 键鼠备用时：鼠标瞄准 + 空格射击。
 
@@ -192,11 +192,17 @@ assets/vfx/{spell}/{state}_0.png
 | 基础 | `fire` `frost` | `hold` `charge` `projectile` `impact` |
 | 终极 | `blizzard` `firestorm` | `hold` `charge` `cast` `loop` |
 
-源图集（便于重切）：
+源图集（透明底，便于重切）：
 
-- `assets/atlas_basic_3x4.png` — 基础 3×4  
-- `assets/atlas_ultimate_3x4.png` — 终极 3×4  
-- `assets/vfx/spell_atlas_basic.png` / `spell_atlas_ultimate.png` — 副本  
+- `assets/image.png` — 基础 3×4（火 / 冰 / 电）  
+- `assets/image2.png` — 终极 3×4（暴风雪 / 火风暴 / 闪电链）  
+- 同步副本：`atlas_basic_3x4.png`、`atlas_ultimate_3x4.png`、`vfx/spell_atlas_*.png`  
+
+重切：
+
+```bash
+python3 tools/slice_atlas.py          # 默认 pad=512、inset=6
+```
 
 加载逻辑：`SpellVfxLibrary` 直接读 PNG 文件（不依赖 import 缓存），改图后重启场景即可。
 
@@ -231,9 +237,9 @@ cd godot
 | 终极独立音效 | 现复用三系 hit wav |
 | BGM / 环境音 | 无 |
 | 多帧序列动画 | 每状态仍 1 帧静图 |
-| VFX 抠底质量 | 部分帧仍带深色底板，叠加可能发脏 |
+| VFX 抠底质量 | 基础法 `image.png` 透明良好；终极 `image2` 部分帧（如 charge/cast）仍带半透明底板 |
 | 战败结算页 | 无本局统计 / 最高分 |
-| 切片工具入库 | 换 atlas 时缺少固定 `tools/slice_atlas.py` |
+| 切片工具 | ✅ `tools/slice_atlas.py`（`image.png` / `image2.png` → vfx 帧） |
 
 ### 6.3 低优先 / 远期
 
@@ -262,7 +268,7 @@ cd godot
 2. **只调阈值**：`pose_classifier.gd`、`ritual_detector.gd`（必要时 `gesture_controller.gd`）。  
 3. **开局教学 1 屏**（图文或短演示）。  
 4. **终极 CD 环 + 专属音效**。  
-5. 满意后 **git commit**，并视需要补 `tools/slice_atlas.py`。
+5. 满意后 **git commit**（含新 atlas 切片与 `tools/slice_atlas.py`）。
 
 ---
 

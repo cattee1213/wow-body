@@ -4,7 +4,8 @@ extends RefCounted
 ## Ultimate cast: two-hand rituals via RitualDetector (independent CDs on GameBus).
 
 ## Slow base fire rate — upgrades raise it via fire_rate_mult.
-const FIRE_COOLDOWN_SEC := 0.82
+## Deliberately sluggish at run start so body aiming stays readable.
+const FIRE_COOLDOWN_SEC := 1.40
 const OPEN_SMOOTH := 14.0
 const INSTANT_POWER := 0.75
 ## Point threshold — tuned so clear index-up poses fire reliably.
